@@ -1,12 +1,32 @@
+////////////////////////////////////////////////////////////////////////////////
+//                                                                            //
+//                PAGE D'ACCUEIL PRINCIPALE DE L'APPLICATION                  //
+//                                                                            //
+//  Ce fichier définit la `HomePage`, qui sert d'écran principal à            //
+//  l'utilisateur après sa connexion. C'est le hub central de l'application.  //
+//                                                                            //
+//  Fonctionnalités :                                                         //
+//  - Affiche un message de bienvenue personnalisé.                            //
+//  - Intègre un `AvisBadgeWidget` de manière proéminente pour inciter        //
+//    l'utilisateur à laisser des avis en attente.                            //
+//  - Utilise un `HairbnbScaffold` pour une structure de page cohérente        //
+//    (probablement avec un `AppBar` et un `Drawer` configurés).              //
+//  - Gère la navigation via un `BottomNavBar`.                               //
+//  - Récupère les informations de l'utilisateur via le `CurrentUserProvider`.//
+//                                                                            //
+////////////////////////////////////////////////////////////////////////////////
+library;
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:hairbnb/widgets/bottom_nav_bar.dart';
 import 'package:provider/provider.dart';
 import '../services/my_drawer_service/hairbnb_scaffold.dart';
 import '../services/providers/current_user_provider.dart';
 import 'avis/mes_avis_en_attente_page.dart';
-import 'avis/services/debug_avis_screen.dart';
 import 'avis/widgets/avis_badge_widget.dart';
 
+/// Widget principal de la page d'accueil.
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -14,43 +34,48 @@ class HomePage extends StatefulWidget {
   _HomePageState createState() => _HomePageState();
 }
 
+/// Classe d'état pour `HomePage`.
+/// Gère l'état de l'interface, notamment l'index de la barre de navigation.
 class _HomePageState extends State<HomePage> {
+  /// L'index de l'onglet actuellement sélectionné dans le `BottomNavBar`.
   int _currentIndex = 0;
 
-  /// 🔔 Fonction appelée quand on clique sur le badge d'avis
+  /// Gère la navigation vers la page des avis en attente.
+  ///
+  /// Cette méthode est appelée lors du clic sur le badge ou le bouton.
+  /// Elle utilise `Navigator.push` et attend un résultat potentiel
+  /// au retour de la page pour rafraîchir l'état si nécessaire.
   void _navigateToAvisEnAttente() {
-    print("🔔 Navigation vers avis en attente");
+    if (kDebugMode) {
+      print("Navigation vers avis en attente");
+    }
 
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => MesAvisEnAttenteScreen(),
+        builder: (context) => const MesAvisEnAttenteScreen(),
       ),
     ).then((result) {
+      // Si la page `MesAvisEnAttenteScreen` retourne `true` (par exemple,
+      // après qu'un avis a été laissé), on déclenche une reconstruction
+      // de la page d'accueil pour potentiellement rafraîchir ses widgets.
       if (result == true) {
         setState(() {});
       }
     });
   }
 
-  /// 🧪 Navigation vers l'écran de debug
-  void _navigateToDebug() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => DebugAvisScreen(),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
+    // Récupère les informations de l'utilisateur connecté via le Provider.
     final currentUser = Provider.of<CurrentUserProvider>(context).currentUser;
 
+    // Utilise un Scaffold personnalisé pour une mise en page cohérente.
     return HairbnbScaffold(
       body: Column(
         children: [
-          // 🎯 BADGE EN HAUT (s'affiche seulement s'il y a des avis)
+          // Widget affichant le badge des avis en attente.
+          // C'est un composant autonome qui gère sa propre logique d'affichage.
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
@@ -59,67 +84,24 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
 
-          // 🎯 CONTENU PRINCIPAL (centré)
+          // Contenu principal de la page.
           Expanded(
             child: Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  // Message de bienvenue personnalisé.
                   Text(
-                    "Bienvenue, ${currentUser?.nom ?? ''} ${currentUser?.prenom ?? ''}",
+                    "Bienvenue, ${currentUser?.prenom ?? ''} ${currentUser?.nom ?? ''}",
                     style: const TextStyle(fontSize: 20),
                   ),
                   const SizedBox(height: 20),
 
-                  // 🧪 BOUTON DEBUG TEMPORAIRE
-                  Container(
-                    padding: EdgeInsets.all(16),
-                    margin: EdgeInsets.symmetric(horizontal: 20),
-                    decoration: BoxDecoration(
-                      color: Colors.red[50],
-                      border: Border.all(color: Colors.red[200]!),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Column(
-                      children: [
-                        Icon(Icons.bug_report, color: Colors.red, size: 30),
-                        SizedBox(height: 8),
-                        Text(
-                          '🚨 PROBLÈME DÉTECTÉ',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Colors.red[700],
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          'Erreur: "No TblClient matches"',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.red[600],
-                          ),
-                        ),
-                        SizedBox(height: 12),
-                        ElevatedButton.icon(
-                          onPressed: _navigateToDebug,
-                          icon: Icon(Icons.build),
-                          label: Text('🧪 DIAGNOSTIQUER'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red,
-                            foregroundColor: Colors.white,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // Bouton normal pour tester
+                  // Bouton de test ou d'action principal.
                   ElevatedButton.icon(
                     onPressed: _navigateToAvisEnAttente,
-                    icon: Icon(Icons.rate_review),
-                    label: Text("Voir mes avis en attente"),
+                    icon: const Icon(Icons.rate_review),
+                    label: const Text("Voir mes avis en attente"),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.orange,
                       foregroundColor: Colors.white,
@@ -135,9 +117,11 @@ class _HomePageState extends State<HomePage> {
           ),
         ],
       ),
+      // Barre de navigation inférieure.
       bottomNavigationBar: BottomNavBar(
         currentIndex: _currentIndex,
         onTap: (index) {
+          // Met à jour l'état de l'index lors du clic sur un onglet.
           setState(() {
             _currentIndex = index;
           });
@@ -153,10 +137,7 @@ class _HomePageState extends State<HomePage> {
 
 
 
-
-
-
-
+// import 'package:flutter/foundation.dart';
 // import 'package:flutter/material.dart';
 // import 'package:hairbnb/widgets/bottom_nav_bar.dart';
 // import 'package:provider/provider.dart';
@@ -177,18 +158,18 @@ class _HomePageState extends State<HomePage> {
 //
 //   /// 🔔 Fonction appelée quand on clique sur le badge d'avis
 //   void _navigateToAvisEnAttente() {
-//     print("🔔 Navigation vers avis en attente");
+//     if (kDebugMode) {
+//       print("🔔 Navigation vers avis en attente");
+//     }
 //
-//     // 🎯 Navigation vers l'écran des avis en attente
 //     Navigator.push(
 //       context,
 //       MaterialPageRoute(
 //         builder: (context) => MesAvisEnAttenteScreen(),
 //       ),
 //     ).then((result) {
-//       // 🔄 Optionnel: Recharger le badge quand on revient
 //       if (result == true) {
-//         setState(() {}); // Force le rebuild du badge
+//         setState(() {});
 //       }
 //     });
 //   }
@@ -205,7 +186,7 @@ class _HomePageState extends State<HomePage> {
 //             width: double.infinity,
 //             padding: const EdgeInsets.all(16),
 //             child: AvisBadgeText(
-//               onTap: _navigateToAvisEnAttente, // 🔗 Connecté à la vraie navigation
+//               onTap: _navigateToAvisEnAttente,
 //             ),
 //           ),
 //
@@ -221,7 +202,9 @@ class _HomePageState extends State<HomePage> {
 //                   ),
 //                   const SizedBox(height: 20),
 //
-//                   // 🎯 Optionnel: Bouton de test pour aller directement aux avis
+//                   const SizedBox(height: 20),
+//
+//                   // Bouton normal pour tester
 //                   ElevatedButton.icon(
 //                     onPressed: _navigateToAvisEnAttente,
 //                     icon: Icon(Icons.rate_review),
@@ -235,8 +218,6 @@ class _HomePageState extends State<HomePage> {
 //                       ),
 //                     ),
 //                   ),
-//
-//                   // Vos autres widgets...
 //                 ],
 //               ),
 //             ),
@@ -255,179 +236,3 @@ class _HomePageState extends State<HomePage> {
 //   }
 // }
 //
-//
-//
-//
-//
-// // import 'package:flutter/foundation.dart';
-// // import 'package:flutter/material.dart';
-// // import 'package:hairbnb/widgets/bottom_nav_bar.dart';
-// // import 'package:provider/provider.dart';
-// // import '../services/my_drawer_service/hairbnb_scaffold.dart';
-// // import '../services/providers/current_user_provider.dart';
-// // import 'avis/widgets/avis_badge_widget.dart';
-// //
-// // class HomePage extends StatefulWidget {
-// //   const HomePage({super.key});
-// //
-// //   @override
-// //   _HomePageState createState() => _HomePageState();
-// // }
-// //
-// // class _HomePageState extends State<HomePage> {
-// //   int _currentIndex = 0;
-// //
-// //   /// 🔔 Fonction appelée quand on clique sur le badge d'avis
-// //   void _navigateToAvisEnAttente() {
-// //     if (kDebugMode) {
-// //       print("🔔 Navigation vers avis en attente");
-// //     }
-// //
-// //     // 🚧 TODO: Remplacer par votre navigation vers l'écran des avis en attente
-// //     ScaffoldMessenger.of(context).showSnackBar(
-// //       const SnackBar(
-// //         content: Text('Navigation vers avis en attente - À implémenter'),
-// //         backgroundColor: Colors.orange,
-// //         duration: Duration(seconds: 2),
-// //       ),
-// //     );
-// //
-// //     // Exemple de navigation (quand vous aurez créé l'écran) :
-// //     // Navigator.push(
-// //     //   context,
-// //     //   MaterialPageRoute(builder: (context) => MesAvisEnAttenteScreen()),
-// //     // );
-// //   }
-// //
-// //   @override
-// //   Widget build(BuildContext context) {
-// //     final currentUser = Provider.of<CurrentUserProvider>(context).currentUser;
-// //
-// //     return HairbnbScaffold(
-// //       body: Column(
-// //         children: [
-// //           // 🎯 BADGE EN HAUT (s'affiche seulement s'il y a des avis)
-// //           Container(
-// //             width: double.infinity,
-// //             padding: const EdgeInsets.all(16),
-// //             child: AvisBadgeText(
-// //               onTap: _navigateToAvisEnAttente,
-// //             ),
-// //           ),
-// //
-// //           // 🎯 CONTENU PRINCIPAL (centré)
-// //           Expanded(
-// //             child: Center(
-// //               child: Column(
-// //                 mainAxisAlignment: MainAxisAlignment.center,
-// //                 children: [
-// //                   Text(
-// //                     "Bienvenue, ${currentUser?.nom ?? ''} ${currentUser?.prenom ?? ''}",
-// //                     style: const TextStyle(fontSize: 20),
-// //                   ),
-// //                   const SizedBox(height: 20),
-// //                   // ElevatedButton.icon(
-// //                   //   onPressed: () {
-// //                   //     Navigator.push(
-// //                   //       context,
-// //                   //       MaterialPageRoute(builder: (context) => RdvCoiffeusePage()),
-// //                   //     );
-// //                   //   },
-// //                   //   icon: const Icon(Icons.calendar_today),
-// //                   //   label: const Text("Voir mes RDVs"),
-// //                   //   style: ElevatedButton.styleFrom(
-// //                   //     backgroundColor: Colors.orange,
-// //                   //     foregroundColor: Colors.white,
-// //                   //     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-// //                   //     shape: RoundedRectangleBorder(
-// //                   //       borderRadius: BorderRadius.circular(12),
-// //                   //     ),
-// //                   //   ),
-// //                   // ),
-// //                 ],
-// //               ),
-// //             ),
-// //           ),
-// //         ],
-// //       ),
-// //       bottomNavigationBar: BottomNavBar(
-// //         currentIndex: _currentIndex,
-// //         onTap: (index) {
-// //           setState(() {
-// //             _currentIndex = index;
-// //           });
-// //         },
-// //       ),
-// //     );
-// //   }
-// // }
-// //
-// //
-// //
-// //
-// //
-// //
-// //
-// //
-// // // import 'package:flutter/material.dart';
-// // // import 'package:hairbnb/widgets/bottom_nav_bar.dart';
-// // // import 'package:provider/provider.dart';
-// // // import '../services/my_drawer_service/hairbnb_scaffold.dart';
-// // // import '../services/providers/current_user_provider.dart';
-// // //
-// // // class HomePage extends StatefulWidget {
-// // //   const HomePage({super.key});
-// // //
-// // //   @override
-// // //   _HomePageState createState() => _HomePageState();
-// // // }
-// // //
-// // // class _HomePageState extends State<HomePage> {
-// // //   int _currentIndex = 0;
-// // //
-// // //   @override
-// // //   Widget build(BuildContext context) {
-// // //     final currentUser = Provider.of<CurrentUserProvider>(context).currentUser;
-// // //
-// // //     return HairbnbScaffold(
-// // //       body: Center(
-// // //         child: Column(
-// // //           mainAxisAlignment: MainAxisAlignment.center,
-// // //           children: [
-// // //             Text(
-// // //               "Bienvenue, ${currentUser?.nom ?? ''} ${currentUser?.prenom ?? ''}",
-// // //               style: const TextStyle(fontSize: 20),
-// // //             ),
-// // //             const SizedBox(height: 20),
-// // //             // ElevatedButton.icon(
-// // //             //   onPressed: () {
-// // //             //     Navigator.push(
-// // //             //       context,
-// // //             //       MaterialPageRoute(builder: (context) => RdvCoiffeusePage()),
-// // //             //     );
-// // //             //   },
-// // //             //   icon: const Icon(Icons.calendar_today),
-// // //             //   label: const Text("Voir mes RDVs"),
-// // //             //   style: ElevatedButton.styleFrom(
-// // //             //     backgroundColor: Colors.orange,
-// // //             //     foregroundColor: Colors.white,
-// // //             //     padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-// // //             //     shape: RoundedRectangleBorder(
-// // //             //       borderRadius: BorderRadius.circular(12),
-// // //             //     ),
-// // //             //   ),
-// // //             // ),
-// // //           ],
-// // //         ),
-// // //       ),
-// // //       bottomNavigationBar: BottomNavBar(
-// // //         currentIndex: _currentIndex,
-// // //         onTap: (index) {
-// // //           setState(() {
-// // //             _currentIndex = index;
-// // //           });
-// // //         },
-// // //       ),
-// // //     );
-// // //   }
-// // // }

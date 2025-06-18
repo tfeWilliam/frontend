@@ -42,40 +42,6 @@ class TokenService {
   }
 
 
-
-  // static Future<String?> getAuthToken() async {
-  //   try {
-  //     // Option 1 : lecture locale via SharedPreferences
-  //     final prefs = await SharedPreferences.getInstance();
-  //     String? token = prefs.getString(_tokenKey);
-  //
-  //     if (token != null && token.isNotEmpty) {
-  //       return token;
-  //     }
-  //
-  //     // Option 2 : récupération via FirebaseAuth
-  //     final firebaseUser = FirebaseAuth.instance.currentUser;
-  //     if (firebaseUser != null) {
-  //       token = await firebaseUser.getIdToken();
-  //
-  //       // Stocker le token localement pour usage futur
-  //       if (token != null) {
-  //         await prefs.setString(_tokenKey, token);
-  //       }
-  //
-  //       return token;
-  //     }
-  //
-  //     // Aucun utilisateur connecté ou token invalide
-  //     return null;
-  //   } catch (e) {
-  //     if (kDebugMode) {
-  //       print('Erreur lors de la récupération du token: $e');
-  //     }
-  //     return null;
-  //   }
-  // }
-
   //////////////////////////////////////////////////////////////////////////////////////////////
   /// Méthode pour sauvegarder un token dans SharedPreferences
   /// Retourne : true si succès, false sinon

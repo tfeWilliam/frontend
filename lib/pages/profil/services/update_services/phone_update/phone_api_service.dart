@@ -1,95 +1,148 @@
-﻿import 'dart:convert';
+﻿/// *************************************************************************************************
+///
+/// BANNER : EXPLICATION GÉNÉRALE DU SERVICE DE MISE À JOUR DU TÉLÉPHONE
+///
+/// Ce fichier contient l'ensemble de la logique nécessaire pour communiquer avec l'API
+/// backend afin de mettre à jour le numéro de téléphone d'un utilisateur.
+///
+/// Il est structuré en plusieurs parties :
+///
+/// 1.  `PhoneApiService` :
+/// La classe principale qui contient la logique d'appel réseau. Elle prépare et envoie
+/// la requête HTTP PATCH, gère l'authentification en récupérant un token, et délègue
+/// l'analyse de la réponse à une méthode dédiée.
+///
+/// 2.  `PhoneUpdateRequest` :
+/// Une classe de données simple (DTO) qui structure le corps de la requête JSON
+/// envoyée à l'API, garantissant que le format correspond à ce que le backend attend.
+///
+/// 3.  `PhoneUpdateResult` :
+/// Une classe de résultat structurée qui encapsule le dénouement de l'appel API.
+/// Plutôt que de lever des exceptions pour les erreurs API, les méthodes retournent
+/// cet objet, qui contient un statut de succès, un message pour l'utilisateur,
+/// et un type d'erreur catégorisé.
+///
+/// 4.  `PhoneUpdateErrorType` :
+/// Une énumération qui définit des catégories d'erreurs claires. Cela permet à
+/// la couche UI de réagir différemment selon le type d'erreur (ex: afficher une
+/// erreur de validation sur un champ, ou rediriger vers la page de connexion).
+///
+///*************************************************************************************************
+library;
+
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../../../../../services/firebase_token/token_service.dart';
 
+/// Classe de service gérant les appels API pour le numéro de téléphone de l'utilisateur.
 class PhoneApiService {
+  /// L'URL de base pour toutes les requêtes de l'API.
   static const String baseUrl = 'https://www.hairbnb.site/api';
 
-  /// Met à jour uniquement le numéro de téléphone d'un utilisateur
-  /// Format corrigé pour correspondre au backend Django
+  /// Tente de mettre à jour le numéro de téléphone pour un utilisateur donné.
+  ///
+  /// Cette méthode gère l'obtention du token, la construction de la requête, l'appel réseau
+  /// et retourne un objet `PhoneUpdateResult` détaillé.
+  /// [userUuid] L'identifiant unique de l'utilisateur.
+  /// [newPhone] Le nouveau numéro de téléphone à assigner.
   static Future<PhoneUpdateResult> updatePhone(String userUuid, String newPhone) async {
     try {
+      // Construit l'URL complète de l'endpoint de l'API.
       final apiUrl = '$baseUrl/update_user_phone/$userUuid/';
 
-      // Récupérer le token d'authentification
+      // Récupère le token d'authentification de manière asynchrone.
       final String? authToken = await TokenService.getAuthToken();
 
+      // Si aucun token n'est disponible, la requête ne peut pas être authentifiée.
       if (authToken == null) {
-        print('Erreur: Token d\'authentification non disponible');
+        if (kDebugMode) {
+          print('Erreur: Token d\'authentification non disponible');
+        }
         return PhoneUpdateResult(
           success: false,
-          message: 'Token d\'authentification non disponible',
+          message: 'Token d\'authentification non disponible. Veuillez vous reconnecter.',
           errorType: PhoneUpdateErrorType.authentication,
         );
       }
 
-      // Préparer les headers avec le token d'authentification
+      // Prépare les en-têtes HTTP, incluant le type de contenu et le token d'autorisation.
       final headers = {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $authToken',
         'Accept': 'application/json',
       };
 
-      // CORRECTION : Utiliser "numeroTelephone" (camelCase) comme attendu par Django
+      // Crée un objet structuré pour la requête et le convertit en JSON.
       final request = PhoneUpdateRequest(numeroTelephone: newPhone);
       final jsonBody = jsonEncode(request.toJson());
 
-      print('🔍 Envoi de la requête de mise à jour téléphone');
-      print('🔍 URL: $apiUrl');
-      print('🔍 Corps: $jsonBody');
+      // Logs de débogage pour suivre la requête sortante.
+      if (kDebugMode) {
+        print('🔍 Envoi de la requête de mise à jour téléphone...');
+      }
+      if (kDebugMode) {
+        print('🔍 URL: $apiUrl');
+      }
+      if (kDebugMode) {
+        print('🔍 Corps: $jsonBody');
+      }
 
-      // Envoyer la requête PATCH
+      // Envoie la requête HTTP PATCH au serveur.
       final response = await http.patch(
         Uri.parse(apiUrl),
         headers: headers,
         body: jsonBody,
       );
 
-      print('🔍 Statut réponse: ${response.statusCode}');
-      print('🔍 Corps réponse: ${response.body}');
+      // Logs de débogage pour la réponse reçue.
+      if (kDebugMode) {
+        print('🔍 Statut de la réponse: ${response.statusCode}');
+      }
+      if (kDebugMode) {
+        print('🔍 Corps de la réponse: ${response.body}');
+      }
 
-      // Analyser la réponse
+      // Délègue l'analyse de la réponse à une méthode spécialisée.
       return _handleResponse(response);
     } catch (e) {
-      print('❌ Exception lors de la mise à jour du téléphone: $e');
+      // Capture les exceptions (ex: erreur réseau, timeout) et retourne un résultat d'erreur.
+      if (kDebugMode) {
+        print('❌ Exception lors de la mise à jour du téléphone: $e');
+      }
       return PhoneUpdateResult(
         success: false,
-        message: 'Erreur de connexion: $e',
+        message: 'Impossible de se connecter au serveur. Veuillez vérifier votre connexion internet.',
         errorType: PhoneUpdateErrorType.network,
       );
     }
   }
 
-  /// Analyse la réponse du serveur et retourne un résultat structuré
+  /// Méthode privée qui analyse la réponse HTTP et la transforme en `PhoneUpdateResult`.
   static PhoneUpdateResult _handleResponse(http.Response response) {
+    // Utilise le code de statut HTTP pour déterminer le résultat de l'opération.
     switch (response.statusCode) {
-      case 200:
+      case 200: // OK: La mise à jour a réussi.
         try {
           final responseData = jsonDecode(response.body);
           return PhoneUpdateResult(
             success: true,
-            message: responseData['message'] ?? 'Numéro de téléphone mis à jour avec succès',
+            message: responseData['message'] ?? 'Numéro de téléphone mis à jour avec succès.',
             data: responseData,
           );
         } catch (e) {
+          // Fallback au cas où la réponse 200 ne serait pas un JSON valide.
           return PhoneUpdateResult(
             success: true,
-            message: 'Numéro de téléphone mis à jour avec succès',
+            message: 'Numéro de téléphone mis à jour avec succès.',
           );
         }
 
-      case 400:
+      case 400: // Bad Request: Erreur de validation des données envoyées.
         try {
           final errorData = jsonDecode(response.body);
-          String errorMessage = 'Données invalides';
-
-          // Extraire le message d'erreur du backend Django
-          if (errorData['error'] != null) {
-            errorMessage = errorData['error'];
-          } else if (errorData['message'] != null) {
-            errorMessage = errorData['message'];
-          }
-
+          // Tente d'extraire un message d'erreur spécifique du backend.
+          String errorMessage = errorData['error'] ?? errorData['message'] ?? 'Données invalides.';
           return PhoneUpdateResult(
             success: false,
             message: errorMessage,
@@ -99,41 +152,36 @@ class PhoneApiService {
         } catch (e) {
           return PhoneUpdateResult(
             success: false,
-            message: 'Format de numéro de téléphone invalide',
+            message: 'Le format du numéro de téléphone est invalide.',
             errorType: PhoneUpdateErrorType.validation,
           );
         }
 
-      case 401:
+      case 401: // Unauthorized: Token invalide ou expiré.
         return PhoneUpdateResult(
           success: false,
-          message: 'Session expirée, veuillez vous reconnecter',
+          message: 'Session expirée, veuillez vous reconnecter.',
           errorType: PhoneUpdateErrorType.authentication,
         );
 
-      case 403:
+      case 403: // Forbidden: L'utilisateur est authentifié mais n'a pas les droits.
         return PhoneUpdateResult(
           success: false,
-          message: 'Vous n\'êtes pas autorisé à modifier ce numéro',
+          message: 'Vous n\'êtes pas autorisé à effectuer cette modification.',
           errorType: PhoneUpdateErrorType.authorization,
         );
 
-      case 404:
+      case 404: // Not Found: La ressource (l'utilisateur) n'a pas été trouvée.
         return PhoneUpdateResult(
           success: false,
-          message: 'Utilisateur non trouvé',
+          message: 'L\'utilisateur cible n\'a pas été trouvé.',
           errorType: PhoneUpdateErrorType.notFound,
         );
 
-      case 500:
+      case 500: // Internal Server Error: Erreur côté serveur.
         try {
           final errorData = jsonDecode(response.body);
-          String errorMessage = 'Erreur serveur, veuillez réessayer plus tard';
-
-          if (errorData['error'] != null) {
-            errorMessage = 'Erreur serveur: ${errorData['error']}';
-          }
-
+          final String errorMessage = 'Erreur serveur: ${errorData['error'] ?? 'Veuillez réessayer plus tard.'}';
           return PhoneUpdateResult(
             success: false,
             message: errorMessage,
@@ -143,40 +191,45 @@ class PhoneApiService {
         } catch (e) {
           return PhoneUpdateResult(
             success: false,
-            message: 'Erreur serveur, veuillez réessayer plus tard',
+            message: 'Une erreur est survenue sur le serveur. Veuillez réessayer plus tard.',
             errorType: PhoneUpdateErrorType.server,
           );
         }
 
-      default:
+      default: // Gère tous les autres codes de statut inattendus.
         return PhoneUpdateResult(
           success: false,
-          message: 'Erreur inattendue (${response.statusCode}): ${response.body}',
+          message: 'Une erreur inattendue est survenue (${response.statusCode}).',
           errorType: PhoneUpdateErrorType.unknown,
         );
     }
   }
 }
 
-/// Classe pour représenter le corps de la requête de mise à jour du téléphone
-/// CORRECTION : Utilise "numeroTelephone" comme attendu par le backend Django
+/// Représente le corps de la requête de mise à jour, formaté pour l'API.
 class PhoneUpdateRequest {
   final String numeroTelephone;
 
   PhoneUpdateRequest({required this.numeroTelephone});
 
+  /// Convertit l'objet en une Map JSON.
   Map<String, dynamic> toJson() {
     return {
-      'numeroTelephone': numeroTelephone, // camelCase comme attendu par Django
+      // La clé 'numeroTelephone' doit correspondre exactement à ce qu'attend le backend.
+      'numeroTelephone': numeroTelephone,
     };
   }
 }
 
-/// Résultat de la mise à jour du numéro de téléphone
+/// Représente le résultat d'une tentative de mise à jour du téléphone.
 class PhoneUpdateResult {
+  /// `true` si la mise à jour a réussi, sinon `false`.
   final bool success;
+  /// Message descriptif à afficher à l'utilisateur.
   final String message;
+  /// Type d'erreur catégorisé, `null` en cas de succès.
   final PhoneUpdateErrorType? errorType;
+  /// Données supplémentaires retournées par l'API (ex: détails de l'erreur).
   final Map<String, dynamic>? data;
 
   PhoneUpdateResult({
@@ -187,25 +240,25 @@ class PhoneUpdateResult {
   });
 }
 
-/// Types d'erreurs possibles lors de la mise à jour du téléphone
+/// Énumération des types d'erreurs possibles pour une meilleure gestion dans l'UI.
 enum PhoneUpdateErrorType {
-  validation,      // Erreur de validation (format incorrect, etc.)
-  authentication,  // Problème d'authentification
-  authorization,   // Problème d'autorisation
-  conflict,        // Numéro déjà utilisé (pas utilisé par cette API)
-  notFound,        // Utilisateur non trouvé
-  network,         // Erreur réseau
-  server,          // Erreur serveur
-  unknown,         // Erreur inconnue
+  /// Erreur de validation (ex: format de numéro incorrect).
+  validation,
+  /// Problème de token (manquant, invalide ou expiré).
+  authentication,
+  /// L'utilisateur n'a pas les droits pour cette action.
+  authorization,
+  /// Le numéro est déjà utilisé par un autre compte (non géré par cette API actuellement).
+  conflict,
+  /// La ressource (utilisateur) n'a pas été trouvée.
+  notFound,
+  /// Erreur de connectivité réseau.
+  network,
+  /// Erreur interne du serveur (5xx).
+  server,
+  /// Toute autre erreur non catégorisée.
+  unknown,
 }
-
-
-
-
-
-
-
-
 
 
 
@@ -220,7 +273,7 @@ enum PhoneUpdateErrorType {
 //   static const String baseUrl = 'https://www.hairbnb.site/api';
 //
 //   /// Met à jour uniquement le numéro de téléphone d'un utilisateur
-//   /// Inclut automatiquement le token d'authentification
+//   /// Format corrigé pour correspondre au backend Django
 //   static Future<PhoneUpdateResult> updatePhone(String userUuid, String newPhone) async {
 //     try {
 //       final apiUrl = '$baseUrl/update_user_phone/$userUuid/';
@@ -241,9 +294,10 @@ enum PhoneUpdateErrorType {
 //       final headers = {
 //         'Content-Type': 'application/json',
 //         'Authorization': 'Bearer $authToken',
+//         'Accept': 'application/json',
 //       };
 //
-//       // Créer la requête avec le champ du numéro de téléphone
+//       // CORRECTION : Utiliser "numeroTelephone" (camelCase) comme attendu par Django
 //       final request = PhoneUpdateRequest(numeroTelephone: newPhone);
 //       final jsonBody = jsonEncode(request.toJson());
 //
@@ -294,9 +348,18 @@ enum PhoneUpdateErrorType {
 //       case 400:
 //         try {
 //           final errorData = jsonDecode(response.body);
+//           String errorMessage = 'Données invalides';
+//
+//           // Extraire le message d'erreur du backend Django
+//           if (errorData['error'] != null) {
+//             errorMessage = errorData['error'];
+//           } else if (errorData['message'] != null) {
+//             errorMessage = errorData['message'];
+//           }
+//
 //           return PhoneUpdateResult(
 //             success: false,
-//             message: errorData['message'] ?? 'Données invalides',
+//             message: errorMessage,
 //             errorType: PhoneUpdateErrorType.validation,
 //             data: errorData,
 //           );
@@ -318,7 +381,7 @@ enum PhoneUpdateErrorType {
 //       case 403:
 //         return PhoneUpdateResult(
 //           success: false,
-//           message: 'Accès non autorisé',
+//           message: 'Vous n\'êtes pas autorisé à modifier ce numéro',
 //           errorType: PhoneUpdateErrorType.authorization,
 //         );
 //
@@ -329,24 +392,33 @@ enum PhoneUpdateErrorType {
 //           errorType: PhoneUpdateErrorType.notFound,
 //         );
 //
-//       case 409:
-//         return PhoneUpdateResult(
-//           success: false,
-//           message: 'Ce numéro de téléphone est déjà utilisé par un autre compte',
-//           errorType: PhoneUpdateErrorType.conflict,
-//         );
-//
 //       case 500:
-//         return PhoneUpdateResult(
-//           success: false,
-//           message: 'Erreur serveur, veuillez réessayer plus tard',
-//           errorType: PhoneUpdateErrorType.server,
-//         );
+//         try {
+//           final errorData = jsonDecode(response.body);
+//           String errorMessage = 'Erreur serveur, veuillez réessayer plus tard';
+//
+//           if (errorData['error'] != null) {
+//             errorMessage = 'Erreur serveur: ${errorData['error']}';
+//           }
+//
+//           return PhoneUpdateResult(
+//             success: false,
+//             message: errorMessage,
+//             errorType: PhoneUpdateErrorType.server,
+//             data: errorData,
+//           );
+//         } catch (e) {
+//           return PhoneUpdateResult(
+//             success: false,
+//             message: 'Erreur serveur, veuillez réessayer plus tard',
+//             errorType: PhoneUpdateErrorType.server,
+//           );
+//         }
 //
 //       default:
 //         return PhoneUpdateResult(
 //           success: false,
-//           message: 'Erreur inattendue (${response.statusCode})',
+//           message: 'Erreur inattendue (${response.statusCode}): ${response.body}',
 //           errorType: PhoneUpdateErrorType.unknown,
 //         );
 //     }
@@ -354,6 +426,7 @@ enum PhoneUpdateErrorType {
 // }
 //
 // /// Classe pour représenter le corps de la requête de mise à jour du téléphone
+// /// CORRECTION : Utilise "numeroTelephone" comme attendu par le backend Django
 // class PhoneUpdateRequest {
 //   final String numeroTelephone;
 //
@@ -361,7 +434,7 @@ enum PhoneUpdateErrorType {
 //
 //   Map<String, dynamic> toJson() {
 //     return {
-//       'numero_telephone': numeroTelephone,
+//       'numeroTelephone': numeroTelephone, // camelCase comme attendu par Django
 //     };
 //   }
 // }
@@ -386,72 +459,10 @@ enum PhoneUpdateErrorType {
 //   validation,      // Erreur de validation (format incorrect, etc.)
 //   authentication,  // Problème d'authentification
 //   authorization,   // Problème d'autorisation
-//   conflict,        // Numéro déjà utilisé
+//   conflict,        // Numéro déjà utilisé (pas utilisé par cette API)
 //   notFound,        // Utilisateur non trouvé
 //   network,         // Erreur réseau
 //   server,          // Erreur serveur
 //   unknown,         // Erreur inconnue
 // }
 //
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-// // import 'package:http/http.dart' as http;
-// // import '../../../../../services/firebase_token/token_service.dart';
-// //
-// // class PhoneApiService {
-// //   static const String baseUrl = 'https://www.hairbnb.site/api';
-// //
-// //   /// Met à jour uniquement le numéro de téléphone d'un utilisateur
-// //   /// Inclut automatiquement le token d'authentification
-// //   static Future<bool> updatePhone(String userUuid, String newPhone) async {
-// //     try {
-// //       final apiUrl = '$baseUrl/update_user_phone/$userUuid/';
-// //
-// //       // Récupérer le token d'authentification
-// //       final String? authToken = await TokenService.getAuthToken();
-// //
-// //       if (authToken == null) {
-// //         print('Erreur: Token d\'authentification non disponible');
-// //         return false;
-// //       }
-// //
-// //       // Préparer les headers avec le token d'authentification
-// //       final headers = {
-// //         'Content-Type': 'application/json',
-// //         'Authorization': 'Bearer $authToken', // Ajout du token
-// //       };
-// //
-// //       // Créer la requête avec uniquement le champ du numéro de téléphone
-// //       //final request = PhoneUpdateRequest(numeroTelephone: newPhone);
-// //
-// //       // Envoyer la requête PATCH
-// //       final response = await http.patch(
-// //         Uri.parse(apiUrl),
-// //         headers: headers, // Utiliser les headers avec le token
-// //         //body: jsonEncode(request.toJson()),
-// //       );
-// //
-// //       // Vérifier le statut de la réponse
-// //       if (response.statusCode == 200) {
-// //         return true;
-// //       } else {
-// //         print('Erreur API: ${response.statusCode} - ${response.body}');
-// //         return false;
-// //       }
-// //     } catch (e) {
-// //       print('Exception lors de la mise à jour du téléphone: $e');
-// //       return false;
-// //     }
-// //   }
-// // }
-// //
-// // class PhoneUpdateRequest {
-// // }

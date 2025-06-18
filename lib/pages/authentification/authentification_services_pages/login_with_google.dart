@@ -1,4 +1,25 @@
-﻿import 'package:firebase_auth/firebase_auth.dart';
+﻿/****************************************************************************************
+ *
+ * FONCTION DE SERVICE : CONNEXION AVEC GOOGLE
+ *
+ * OBJECTIF :
+ * Cette fonction orchestre le processus complet de connexion et d'inscription d'un
+ * utilisateur via son compte Google. Elle gère le dialogue natif de Google,
+ * l'authentification auprès de Firebase, et la vérification du profil sur le
+ * backend personnalisé de l'application.
+ *
+ * WORKFLOW DÉTAILLÉ :
+ * 1. Déclenche le flux de connexion Google pour obtenir les jetons d'authentification.
+ * 2. Utilise ces jetons pour créer un "credential" et authentifier l'utilisateur
+ * auprès de Firebase.
+ * 3. Récupère le token d'identification Firebase de l'utilisateur nouvellement connecté.
+ * 4. Interroge le backend personnalisé pour vérifier si un profil utilisateur existe.
+ * 5. Redirige l'utilisateur vers la `HomePage` si le profil existe, ou vers la
+ * `ProfileCreationPage` si ce n'est pas le cas.
+ * 6. Gère les cas d'annulation par l'utilisateur et les erreurs potentielles à chaque étape.
+ *
+ *****************************************************************************************/
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:hairbnb/pages/profil/profil_creation_page.dart';
@@ -8,36 +29,49 @@ import 'package:provider/provider.dart';
 
 import '../../../services/providers/current_user_provider.dart';
 
+/// Gère le processus de connexion complet via un compte Google.
+///
+/// [context] : Le BuildContext, nécessaire pour la navigation et l'affichage de messages.
+/// Retourne un `Future<User?>` contenant l'objet utilisateur Firebase en cas de succès,
+/// ou `null` en cas d'annulation ou d'erreur.
 Future<User?> loginWithGoogle(BuildContext context) async {
   try {
+    // --- ETAPE 1: Initialisation de Google Sign-In ---
     final GoogleSignIn googleSignIn = GoogleSignIn(
+      // Le clientId est nécessaire pour l'authentification web.
       clientId: "523426514457-f6gveh52ou52p0glo5g0tjqs3hvegat2.apps.googleusercontent.com",
     );
 
-    await googleSignIn.signOut(); // 🧼 déconnexion précédente
+    // Déconnexion préalable pour garantir une nouvelle authentification fraîche et éviter
+    // les problèmes de comptes mis en cache.
+    await googleSignIn.signOut();
+
+    // --- ETAPE 2: Lancement de la fenêtre de connexion Google ---
     final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
 
+    // Si googleUser est nul, cela signifie que l'utilisateur a fermé la fenêtre de
+    // connexion sans choisir de compte.
     if (googleUser == null) {
-      debugPrint("Connexion Google annulée.");
+      debugPrint("Connexion Google annulée par l'utilisateur.");
       return null;
     }
 
+    // --- ETAPE 3: Création d'un "credential" Firebase à partir des tokens Google ---
     final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
     final credential = GoogleAuthProvider.credential(
       accessToken: googleAuth.accessToken,
       idToken: googleAuth.idToken,
     );
 
+    // --- ETAPE 4: Connexion à Firebase avec le "credential" Google ---
     final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
     final User? user = userCredential.user;
 
+    // --- ETAPE 5: Vérification de sécurité et récupération du token Firebase ---
     if (user == null || !context.mounted) return null;
+    final token = await user.getIdToken();
 
-    final token = await user.getIdToken(); // ✅ token Firebase
-    //-------------------------------------------------
-    print("TOKEN FIREBASE : $token");
-    //------------------------------------------------
-    // 🔄 Appel backend sécurisé
+    // --- ETAPE 6: Vérification de l'existence du profil sur le backend personnalisé ---
     final response = await http.get(
       Uri.parse('https://www.hairbnb.site/api/get_current_user/'),
       headers: {
@@ -46,16 +80,19 @@ Future<User?> loginWithGoogle(BuildContext context) async {
       },
     );
 
+    // --- ETAPE 7: Traitement de la réponse du backend et navigation ---
     if (response.statusCode == 200) {
+      // Le profil utilisateur existe déjà sur le backend.
       final userProvider = Provider.of<CurrentUserProvider>(context, listen: false);
-      await userProvider.fetchCurrentUser(); // Met à jour le provider
+      await userProvider.fetchCurrentUser(); // Met à jour les données de l'utilisateur dans l'app.
 
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (_) => const HomePage()),
       );
     } else if (response.statusCode == 404) {
-      // 🔁 User existe pas → aller à la page de création de profil
+      // L'utilisateur est authentifié sur Firebase mais n'a pas encore de profil backend.
+      // Redirection vers la page de création de profil.
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -66,12 +103,16 @@ Future<User?> loginWithGoogle(BuildContext context) async {
         ),
       );
     } else {
+      // Gère les autres codes d'erreur du backend.
       throw Exception("Erreur backend : ${response.statusCode}");
     }
 
+    // Retourne l'objet utilisateur Firebase en cas de succès complet.
     return user;
   } catch (e) {
-    debugPrint("❌ Erreur Google Sign-In : $e");
+    // --- ETAPE 8: Gestion des erreurs globales ---
+    // Attrape toute exception survenue durant le processus (Google, Firebase, HTTP, etc.).
+    debugPrint("Erreur lors de la connexion avec Google : $e");
 
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -79,89 +120,10 @@ Future<User?> loginWithGoogle(BuildContext context) async {
       );
     }
 
+    // Retourne null pour indiquer un échec.
     return null;
   }
 }
-
-
-
-
-
-// import 'package:flutter/material.dart';
-// import 'package:firebase_auth/firebase_auth.dart';
-// import 'package:google_sign_in/google_sign_in.dart';
-// import '../api/api_authentification.dart';
-//
-// Future<User?> loginWithGoogle(BuildContext context) async {
-//   final apiAuth = ApiAuthentification();
-//
-//   try {
-//     // Afficher indicateur de chargement
-//     showDialog(
-//       context: context,
-//       barrierDismissible: false,
-//       builder: (context) => const Center(child: CircularProgressIndicator()),
-//     );
-//
-//     // Débuter le processus de connexion Google
-//     final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
-//
-//     if (googleUser == null) {
-//       // L'utilisateur a annulé la connexion
-//       Navigator.pop(context);
-//       return null;
-//     }
-//
-//     // Obtenir les détails d'authentification
-//     final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-//
-//     // Créer les identifiants Firebase
-//     final credential = GoogleAuthProvider.credential(
-//       accessToken: googleAuth.accessToken,
-//       idToken: googleAuth.idToken,
-//     );
-//
-//     // Connexion à Firebase avec les identifiants Google
-//     final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
-//
-//     // Vérifier avec le backend
-//     try {
-//       // Faire une requête API pour vérifier l'utilisateur avec votre backend
-//       await apiAuth.verifyUser();
-//
-//       // Fermer l'indicateur de chargement
-//       Navigator.pop(context);
-//
-//       // Rediriger vers la page d'accueil
-//       if (context.mounted) {
-//         Navigator.pushReplacementNamed(context, '/home');
-//       }
-//
-//       return userCredential.user;
-//     } catch (apiError) {
-//       // Si l'utilisateur n'existe pas dans votre backend
-//       Navigator.pop(context);
-//
-//       // Afficher une erreur
-//       ScaffoldMessenger.of(context).showSnackBar(
-//         SnackBar(
-//           content: Text('Erreur de connexion au serveur: $apiError'),
-//           backgroundColor: Colors.red,
-//         ),
-//       );
-//       return userCredential.user; // Retourne quand même l'utilisateur pour la création de compte si nécessaire
-//     }
-//   } catch (e) {
-//     // Fermer l'indicateur de chargement
-//     Navigator.pop(context);
-//
-//     // Afficher erreur
-//     ScaffoldMessenger.of(context).showSnackBar(
-//       SnackBar(content: Text('Erreur de connexion Google: $e'), backgroundColor: Colors.red),
-//     );
-//     return null;
-//   }
-// }
 
 
 
@@ -172,6 +134,7 @@ Future<User?> loginWithGoogle(BuildContext context) async {
 // import 'package:google_sign_in/google_sign_in.dart';
 // import 'package:hairbnb/pages/profil/profil_creation_page.dart';
 // import 'package:hairbnb/pages/home_page.dart';
+// import 'package:http/http.dart' as http;
 // import 'package:provider/provider.dart';
 //
 // import '../../../services/providers/current_user_provider.dart';
@@ -181,12 +144,12 @@ Future<User?> loginWithGoogle(BuildContext context) async {
 //     final GoogleSignIn googleSignIn = GoogleSignIn(
 //       clientId: "523426514457-f6gveh52ou52p0glo5g0tjqs3hvegat2.apps.googleusercontent.com",
 //     );
-//     await googleSignIn.signOut();
 //
+//     await googleSignIn.signOut(); // 🧼 déconnexion précédente
 //     final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
 //
 //     if (googleUser == null) {
-//       debugPrint("Connexion annulée.");
+//       debugPrint("Connexion Google annulée.");
 //       return null;
 //     }
 //
@@ -199,203 +162,52 @@ Future<User?> loginWithGoogle(BuildContext context) async {
 //     final userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
 //     final User? user = userCredential.user;
 //
-//     if (user == null) return null;
+//     if (user == null || !context.mounted) return null;
 //
-//     // // ⚠️ Si l'email N'EST PAS vérifié
-//     // if (!user.emailVerified) {
-//     //   Navigator.pushReplacement(
-//     //     context,
-//     //     MaterialPageRoute(
-//     //       builder: (_) => EmailNotVerifiedPage(email: user.email ?? ''),
-//     //     ),
-//     //   );
-//     //   return null;
-//     // }
+//     final token = await user.getIdToken(); // ✅ token Firebase
 //
-//     // ✅ Si email vérifié → on check si un profil existe
-//     final userProvider = Provider.of<CurrentUserProvider>(context, listen: false);
-//     await userProvider.fetchCurrentUser();
+//     // 🔄 Appel backend sécurisé
+//     final response = await http.get(
+//       Uri.parse('https://www.hairbnb.site/api/get_current_user/'),
+//       headers: {
+//         'Authorization': 'Bearer $token',
+//         'Content-Type': 'application/json',
+//       },
+//     );
 //
-//     if (context.mounted) {
-//       if (userProvider.currentUser != null) {
-//         Navigator.pushReplacement(
-//           context,
-//           MaterialPageRoute(builder: (_) => const HomePage()),
-//         );
-//       } else {
-//         Navigator.pushReplacement(
-//           context,
-//           MaterialPageRoute(
-//             builder: (_) => ProfileCreationPage(
-//               email: user.email ?? '',
-//               userUuid: user.uid,
-//             ),
+//     if (response.statusCode == 200) {
+//       final userProvider = Provider.of<CurrentUserProvider>(context, listen: false);
+//       await userProvider.fetchCurrentUser(); // Met à jour le provider
+//
+//       Navigator.pushReplacement(
+//         context,
+//         MaterialPageRoute(builder: (_) => const HomePage()),
+//       );
+//     } else if (response.statusCode == 404) {
+//       // 🔁 User existe pas → aller à la page de création de profil
+//       Navigator.pushReplacement(
+//         context,
+//         MaterialPageRoute(
+//           builder: (_) => ProfileCreationPage(
+//             email: user.email ?? '',
+//             userUuid: user.uid,
 //           ),
-//         );
-//       }
+//         ),
+//       );
+//     } else {
+//       throw Exception("Erreur backend : ${response.statusCode}");
 //     }
 //
 //     return user;
 //   } catch (e) {
 //     debugPrint("❌ Erreur Google Sign-In : $e");
+//
 //     if (context.mounted) {
 //       ScaffoldMessenger.of(context).showSnackBar(
 //         const SnackBar(content: Text("Erreur lors de la connexion avec Google.")),
 //       );
 //     }
+//
 //     return null;
 //   }
 // }
-
-
-
-
-
-
-
-// import 'package:firebase_auth/firebase_auth.dart';
-// import 'package:flutter/material.dart';
-// import 'package:google_sign_in/google_sign_in.dart';
-// import 'package:hairbnb/pages/authentification/authentification_services_pages/sign_up_with_google.dart';
-// import 'package:hairbnb/pages/home_page.dart';
-//
-// /// Méthode pour créer un compte avec Google
-// Future<User?> loginWithGoogle(BuildContext context) async {
-//   try {
-//     // Étape 1 : Déconnecter le compte Google actif pour forcer la sélection d'un compte
-//     final GoogleSignIn googleSignIn = GoogleSignIn(clientId: "523426514457-f6gveh52ou52p0glo5g0tjqs3hvegat2.apps.googleusercontent.com",);
-//     await googleSignIn.signOut();
-//
-//     // Étape 2 : Démarrer Google Sign-In
-//     final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
-//
-//     if (googleUser == null) {
-//       debugPrint("Connexion annulée par l'utilisateur.");
-//       return null;
-//     }
-//
-//     // Étape 3 : Récupérer les informations d'authentification Google
-//     final GoogleSignInAuthentication googleAuth = await googleUser
-//         .authentication;
-//
-//     final AuthCredential credential = GoogleAuthProvider.credential(
-//       accessToken: googleAuth.accessToken,
-//       idToken: googleAuth.idToken,
-//     );
-//
-//     // Étape 4 : Essayer de se connecter avec Firebase
-//     try {
-//       final UserCredential userCredential =
-//       await FirebaseAuth.instance.signInWithCredential(credential);
-//
-//       final User? user = userCredential.user;
-//
-//
-//       if (user != null) {
-//         debugPrint("Utilisateur connecté avec succès : ${user.email}");
-//         Navigator.pushReplacement(
-//           context,
-//           MaterialPageRoute(builder: (context) => const HomePage()),
-//         );
-//         return user;
-//       }
-//
-//       // Vérifie si l'utilisateur existe
-//       final List<String> signInMethods =
-//       await FirebaseAuth.instance.fetchSignInMethodsForEmail(
-//           googleUser.email);
-//
-//
-//       if (signInMethods.isEmpty) {
-//         // Aucun compte trouvé : afficher la boîte de dialogue
-//
-//
-//         final bool? createAccount = await _showCreateAccountDialog(
-//             context, googleUser.email);
-//         if (createAccount == true) {
-//           // Créer un nouvel utilisateur avec les credentials Google
-//           final UserCredential userCredential =
-//           await FirebaseAuth.instance.signInWithCredential(credential);
-//
-//           debugPrint(
-//               "Nouvel utilisateur créé avec succès : ${userCredential.user
-//                   ?.email}");
-//
-//           // Rediriger vers HomePage
-//           Navigator.pushReplacement(
-//             context,
-//             MaterialPageRoute(builder: (context) => const HomePage()),
-//           );
-//
-//           return userCredential.user;
-//         } else {
-//           // L'utilisateur a refusé de créer un compte
-//           debugPrint("Création de compte refusée.");
-//           return null;
-//         }
-//       }
-//     } on FirebaseAuthException catch (e) {
-//       // Étape 5 : Gestion des erreurs Firebase
-//       if (e.code == 'account-exists-with-different-credential') {
-//         debugPrint(
-//             "Un compte existe avec un autre fournisseur pour cet email.");
-//         ScaffoldMessenger.of(context).showSnackBar(
-//           SnackBar(
-//               content: Text("Ce compte est lié à un autre fournisseur.")),
-//         );
-//       } else if (e.code == 'user-not-found') {
-//         // Aucun compte trouvé : demander à l'utilisateur s'il souhaite créer un compte
-//         final bool? createAccount = await _showCreateAccountDialog(
-//             context, googleUser.email);
-//         if (createAccount == true) {
-//           return await signUpWithGoogle(
-//               context); // <-- Réessayer la connexion
-//         }
-//       } else {
-//         debugPrint("Erreur Firebase : ${e.message}");
-//         ScaffoldMessenger.of(context).showSnackBar(
-//           SnackBar(content: Text("Erreur : ${e.message}")),
-//         );
-//       }
-//     }
-//
-//     return null;
-//   } catch (e) {
-//     debugPrint("Erreur inattendue lors de la connexion Google : $e");
-//     ScaffoldMessenger.of(context).showSnackBar(
-//       const SnackBar(content: Text("Erreur lors de la connexion Google.")),
-//     );
-//     return null;
-//   }
-// }
-//
-// /// Affiche une boîte de dialogue pour demander à l'utilisateur s'il veut créer un compte
-// Future<bool?> _showCreateAccountDialog(BuildContext context,
-//     String email) async {
-//   return showDialog<bool>(
-//     context: context,
-//     builder: (BuildContext context) {
-//       return AlertDialog(
-//         title: const Text("Compte non trouvé"),
-//         content: Text(
-//             "Aucun compte trouvé pour l'adresse $email. Voulez-vous créer un compte ?"),
-//         actions: <Widget>[
-//           TextButton(
-//             child: const Text("Non"),
-//             onPressed: () {
-//               Navigator.of(context).pop(false);
-//             },
-//           ),
-//           TextButton(
-//             child: const Text("Oui"),
-//             onPressed: () {
-//               Navigator.of(context).pop(true);
-//             },
-//           ),
-//         ],
-//       );
-//     },
-//   );
-// }
-
-//-------------------------------------------------------------------------------------------

@@ -1,17 +1,42 @@
-﻿// screens/creer_avis_screen.dart
-
+﻿/// **************************************************************************************
+///
+/// PAGE UI : CRÉATION D'UN AVIS
+/// Fichier: screens/creer_avis_screen.dart
+///
+/// OBJECTIF :
+/// Ce fichier définit l'interface utilisateur permettant à un client de laisser un
+/// avis (une note et un commentaire) pour un rendez-vous spécifique qui est éligible
+/// à une évaluation.
+///
+/// ARCHITECTURE ET FONCTIONNALITÉS CLÉS :
+/// - Utilise un `StatefulWidget` pour gérer l'état du formulaire (note, commentaire,
+/// état de soumission).
+/// - La page est structurée avec un `Form` et un `GlobalKey` pour la validation.
+/// - L'interface est décomposée en méthodes de construction (`_build...`) pour une
+/// meilleure lisibilité et maintenance.
+/// - Propose un sélecteur de note par étoiles interactif avec un retour visuel
+/// (texte et couleur) qui change dynamiquement.
+/// - Gère la soumission asynchrone de l'avis via `AvisService` et affiche un retour
+/// à l'utilisateur (indicateur de chargement, `SnackBar` de succès ou d'erreur).
+/// - Inclut une logique de confirmation pour éviter que l'utilisateur ne quitte
+/// l'écran et ne perde ses modifications accidentellement.
+///
+///***************************************************************************************
+library;
 import 'package:flutter/material.dart';
 import 'package:hairbnb/pages/avis/services/avis_service.dart';
 
 import '../../models/avis.dart';
 
+/// Un écran permettant à l'utilisateur de créer et soumettre un avis pour un rendez-vous.
 class CreerAvisScreen extends StatefulWidget {
+  /// Le rendez-vous éligible pour lequel l'avis est laissé.
   final RdvEligible rdv;
 
   const CreerAvisScreen({
-    Key? key,
+    super.key,
     required this.rdv,
-  }) : super(key: key);
+  });
 
   @override
   _CreerAvisScreenState createState() => _CreerAvisScreenState();
@@ -21,38 +46,31 @@ class _CreerAvisScreenState extends State<CreerAvisScreen> {
   final _formKey = GlobalKey<FormState>();
   final _commentaireController = TextEditingController();
 
-  int _note = 5; // Note par défaut à 5 étoiles
+  /// La note actuellement sélectionnée par l'utilisateur (de 1 à 5).
+  int _note = 5;
+  /// Booléen pour gérer l'état de chargement lors de la soumission de l'avis.
   bool _isSubmitting = false;
 
   @override
   void dispose() {
+    // Libère les ressources du contrôleur de texte pour éviter les fuites de mémoire.
     _commentaireController.dispose();
     super.dispose();
   }
 
-  /// ⭐ Construire le sélecteur d'étoiles
+  /// Construit le widget de notation par étoiles interactif.
   Widget _buildStarRating() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Votre note',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        Text('Votre note', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         SizedBox(height: 12),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: List.generate(5, (index) {
             final starNumber = index + 1;
             return GestureDetector(
-              onTap: () {
-                setState(() {
-                  _note = starNumber;
-                });
-              },
+              onTap: () => setState(() => _note = starNumber),
               child: Container(
                 padding: EdgeInsets.symmetric(horizontal: 4),
                 child: Icon(
@@ -68,43 +86,33 @@ class _CreerAvisScreenState extends State<CreerAvisScreen> {
         Center(
           child: Text(
             _getTextePourNote(_note),
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-              color: _getCouleurPourNote(_note),
-            ),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: _getCouleurPourNote(_note)),
           ),
         ),
       ],
     );
   }
 
-  /// 📝 Texte correspondant à la note
+  /// Retourne une description textuelle correspondant à une note donnée.
   String _getTextePourNote(int note) {
     switch (note) {
-      case 1:
-        return 'Très décevant';
-      case 2:
-        return 'Décevant';
-      case 3:
-        return 'Correct';
-      case 4:
-        return 'Très bien';
-      case 5:
-        return 'Excellent !';
-      default:
-        return '';
+      case 1: return 'Très décevant';
+      case 2: return 'Décevant';
+      case 3: return 'Correct';
+      case 4: return 'Très bien';
+      case 5: return 'Excellent !';
+      default: return '';
     }
   }
 
-  /// 🎨 Couleur correspondant à la note
+  /// Retourne une couleur correspondant à une note pour un retour visuel.
   Color _getCouleurPourNote(int note) {
     if (note <= 2) return Colors.red;
     if (note == 3) return Colors.orange;
     return Colors.green;
   }
 
-  /// 📱 Construire les informations du RDV
+  /// Construit la carte affichant les informations du rendez-vous à évaluer.
   Widget _buildRdvInfo() {
     return Card(
       child: Padding(
@@ -112,28 +120,14 @@ class _CreerAvisScreenState extends State<CreerAvisScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Détails du rendez-vous',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            Text('Détails du rendez-vous', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             SizedBox(height: 12),
-
-            // Salon
             _buildInfoRow(Icons.store, 'Salon', widget.rdv.salonNom),
             SizedBox(height: 8),
-
-            // Date
             _buildInfoRow(Icons.calendar_today, 'Date', widget.rdv.dateFormatee),
             SizedBox(height: 8),
-
-            // Services
             _buildInfoRow(Icons.content_cut, 'Services', widget.rdv.servicesTexte),
             SizedBox(height: 8),
-
-            // Prix
             _buildInfoRow(Icons.euro, 'Prix total', widget.rdv.prixFormate),
           ],
         ),
@@ -141,42 +135,25 @@ class _CreerAvisScreenState extends State<CreerAvisScreen> {
     );
   }
 
-  /// 🏷️ Widget pour une ligne d'information
+  /// Construit une ligne d'information standardisée avec une icône, un libellé et une valeur.
   Widget _buildInfoRow(IconData icon, String label, String value) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Icon(icon, size: 18, color: Colors.grey[600]),
         SizedBox(width: 8),
-        Text(
-          '$label: ',
-          style: TextStyle(
-            fontWeight: FontWeight.w500,
-            color: Colors.grey[700],
-          ),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: TextStyle(color: Colors.black87),
-          ),
-        ),
+        Text('$label: ', style: TextStyle(fontWeight: FontWeight.w500, color: Colors.grey[700])),
+        Expanded(child: Text(value, style: TextStyle(color: Colors.black87))),
       ],
     );
   }
 
-  /// 📝 Construire le champ commentaire
+  /// Construit le champ de saisie de texte pour le commentaire de l'avis.
   Widget _buildCommentaireField() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Votre commentaire',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        Text('Votre commentaire', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         SizedBox(height: 8),
         TextFormField(
           controller: _commentaireController,
@@ -184,48 +161,31 @@ class _CreerAvisScreenState extends State<CreerAvisScreen> {
           maxLength: 500,
           decoration: InputDecoration(
             hintText: 'Partagez votre expérience... (minimum 10 caractères)',
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: Colors.orange, width: 2),
-            ),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.orange, width: 2)),
             contentPadding: EdgeInsets.all(12),
           ),
           validator: (value) {
-            if (value == null || value.trim().isEmpty) {
-              return 'Veuillez écrire un commentaire';
-            }
-            if (value.trim().length < 10) {
-              return 'Le commentaire doit contenir au moins 10 caractères';
-            }
+            if (value == null || value.trim().isEmpty) return 'Veuillez écrire un commentaire';
+            if (value.trim().length < 10) return 'Le commentaire doit contenir au moins 10 caractères';
             return null;
           },
         ),
         SizedBox(height: 8),
         Text(
-          '💡 Conseil: Décrivez votre expérience, la qualité du service, l\'accueil, etc.',
-          style: TextStyle(
-            fontSize: 12,
-            color: Colors.grey[600],
-            fontStyle: FontStyle.italic,
-          ),
+          'Conseil: Décrivez votre expérience, la qualité du service, l\'accueil, etc.',
+          style: TextStyle(fontSize: 12, color: Colors.grey[600], fontStyle: FontStyle.italic),
         ),
       ],
     );
   }
 
-  /// 📤 Soumettre l'avis
+  /// Gère la validation du formulaire et la soumission de l'avis via l'AvisService.
   Future<void> _soumettreAvis() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
-
-    setState(() {
-      _isSubmitting = true;
-    });
-
+    setState(() => _isSubmitting = true);
     try {
       final result = await AvisService.creerAvis(
         context: context,
@@ -236,34 +196,18 @@ class _CreerAvisScreenState extends State<CreerAvisScreen> {
 
       if (mounted) {
         if (result.success) {
-          // ✅ Succès
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Row(
-                children: [
-                  Icon(Icons.check_circle, color: Colors.white),
-                  SizedBox(width: 8),
-                  Expanded(child: Text(result.message)),
-                ],
-              ),
+              content: Row(children: [Icon(Icons.check_circle, color: Colors.white), SizedBox(width: 8), Expanded(child: Text(result.message))]),
               backgroundColor: Colors.green,
               duration: Duration(seconds: 3),
             ),
           );
-
-          // Retourner à l'écran précédent avec signal de succès
-          Navigator.pop(context, true);
+          Navigator.pop(context, true); // Retourne à l'écran précédent avec un signal de succès.
         } else {
-          // ❌ Erreur
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Row(
-                children: [
-                  Icon(Icons.error, color: Colors.white),
-                  SizedBox(width: 8),
-                  Expanded(child: Text(result.message)),
-                ],
-              ),
+              content: Row(children: [Icon(Icons.error, color: Colors.white), SizedBox(width: 8), Expanded(child: Text(result.message))]),
               backgroundColor: Colors.red,
               duration: Duration(seconds: 4),
             ),
@@ -273,25 +217,18 @@ class _CreerAvisScreenState extends State<CreerAvisScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur inattendue: $e'),
-            backgroundColor: Colors.red,
-            duration: Duration(seconds: 4),
-          ),
+          SnackBar(content: Text('Erreur inattendue: $e'), backgroundColor: Colors.red, duration: Duration(seconds: 4)),
         );
       }
     } finally {
       if (mounted) {
-        setState(() {
-          _isSubmitting = false;
-        });
+        setState(() => _isSubmitting = false);
       }
     }
   }
 
-  /// 🚫 Annuler et retourner
+  /// Gère l'action d'annulation, avec une confirmation si des modifications ont été apportées.
   void _annuler() {
-    // Vérifier si des modifications ont été faites
     if (_commentaireController.text.trim().isNotEmpty || _note != 5) {
       showDialog(
         context: context,
@@ -299,14 +236,11 @@ class _CreerAvisScreenState extends State<CreerAvisScreen> {
           title: Text('Annuler la création'),
           content: Text('Êtes-vous sûr de vouloir annuler ? Vos modifications seront perdues.'),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('Continuer la rédaction'),
-            ),
+            TextButton(onPressed: () => Navigator.pop(context), child: Text('Continuer la rédaction')),
             TextButton(
               onPressed: () {
-                Navigator.pop(context); // Fermer le dialog
-                Navigator.pop(context); // Retourner à l'écran précédent
+                Navigator.pop(context);
+                Navigator.pop(context);
               },
               style: TextButton.styleFrom(foregroundColor: Colors.red),
               child: Text('Annuler'),
@@ -327,10 +261,7 @@ class _CreerAvisScreenState extends State<CreerAvisScreen> {
         backgroundColor: Colors.orange,
         foregroundColor: Colors.white,
         elevation: 0,
-        leading: IconButton(
-          icon: Icon(Icons.close),
-          onPressed: _annuler,
-        ),
+        leading: IconButton(icon: Icon(Icons.close), onPressed: _annuler),
       ),
       body: Form(
         key: _formKey,
@@ -339,106 +270,52 @@ class _CreerAvisScreenState extends State<CreerAvisScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Informations du RDV
+              // Section affichant les détails du RDV.
               _buildRdvInfo(),
-
               SizedBox(height: 24),
 
-              // Sélecteur d'étoiles
+              // Section pour la notation par étoiles.
               _buildStarRating(),
-
               SizedBox(height: 24),
 
-              // Champ commentaire
+              // Section pour le champ de commentaire.
               _buildCommentaireField(),
-
               SizedBox(height: 32),
 
-              // Boutons d'action
+              // Section pour les boutons d'action.
               Row(
                 children: [
-                  // Bouton annuler
                   Expanded(
                     child: OutlinedButton(
                       onPressed: _isSubmitting ? null : _annuler,
-                      style: OutlinedButton.styleFrom(
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                        side: BorderSide(color: Colors.grey),
-                      ),
-                      child: Text(
-                        'Annuler',
-                        style: TextStyle(color: Colors.grey[700]),
-                      ),
+                      style: OutlinedButton.styleFrom(padding: EdgeInsets.symmetric(vertical: 12), side: BorderSide(color: Colors.grey)),
+                      child: Text('Annuler', style: TextStyle(color: Colors.grey[700])),
                     ),
                   ),
-
                   SizedBox(width: 16),
-
-                  // Bouton soumettre
                   Expanded(
                     flex: 2,
                     child: ElevatedButton(
                       onPressed: _isSubmitting ? null : _soumettreAvis,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange,
-                        foregroundColor: Colors.white,
-                        padding: EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white, padding: EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
                       child: _isSubmitting
-                          ? Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 2,
-                            ),
-                          ),
-                          SizedBox(width: 8),
-                          Text('Envoi...'),
-                        ],
-                      )
-                          : Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.send),
-                          SizedBox(width: 8),
-                          Text('Publier mon avis'),
-                        ],
-                      ),
+                          ? Row(mainAxisAlignment: MainAxisAlignment.center, children: [SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)), SizedBox(width: 8), Text('Envoi...')])
+                          : Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.send), SizedBox(width: 8), Text('Publier mon avis')]),
                     ),
                   ),
                 ],
               ),
-
               SizedBox(height: 16),
 
-              // Note informative
+              // Note informative pour l'utilisateur.
               Container(
                 padding: EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.blue[50],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.blue[200]!),
-                ),
+                decoration: BoxDecoration(color: Colors.blue[50], borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue[200]!)),
                 child: Row(
                   children: [
                     Icon(Icons.info, color: Colors.blue[600], size: 20),
                     SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Votre avis sera visible publiquement et aidera les autres utilisateurs.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.blue[700],
-                        ),
-                      ),
-                    ),
+                    Expanded(child: Text('Votre avis sera visible publiquement et aidera les autres utilisateurs.', style: TextStyle(fontSize: 12, color: Colors.blue[700]))),
                   ],
                 ),
               ),

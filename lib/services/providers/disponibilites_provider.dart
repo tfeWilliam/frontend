@@ -1,159 +1,258 @@
-﻿import 'package:flutter/material.dart';
+﻿/// *****************************************************************************
+///
+/// FOURNISSEUR D'ÉTAT POUR LES DISPONIBILITÉS (DisponibilitesProvider)
+///
+/// Ce fichier définit la classe `DisponibilitesProvider`, un `ChangeNotifier`
+/// dont le rôle est de gérer la récupération et l'état des disponibilités d'un
+/// professionnel ("coiffeuse").
+///
+/// FONCTIONNALITÉS CLÉS :
+/// 1.  **Récupération des jours disponibles** : La méthode principale, `loadDisponibilites`,
+/// interroge une API jour par jour sur une période de 14 jours pour identifier
+/// les dates qui ont au moins un créneau libre pour une durée de prestation donnée.
+///
+/// 2.  **Récupération des créneaux horaires** : La méthode `getCreneauxPourJour`
+/// récupère la liste précise des créneaux horaires (ex: "09:00", "09:30")
+/// pour une date spécifique sélectionnée par l'utilisateur.
+///
+/// 3.  **Authentification Sécurisée** : Toutes les communications avec l'API sont
+/// sécurisées. Le provider récupère dynamiquement un jeton d'identification
+/// Firebase et l'inclut dans les en-têtes de chaque requête HTTP.
+///
+/// 4.  **Gestion d'état** : Il gère les états de chargement (`isLoaded`) et
+/// d'erreur (`lastError`) pour fournir un retour visuel clair à l'utilisateur
+/// dans l'interface.
+///
+///*****************************************************************************
+library;
+
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:intl/intl.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // 🔥 AJOUT
+import 'package:firebase_auth/firebase_auth.dart';
 
 class DisponibilitesProvider with ChangeNotifier {
+  // --- État interne du Provider ---
+
+  // Liste des jours qui ont au moins un créneau disponible.
   List<DateTime> _joursDisponibles = [];
+  // Indique si le chargement initial des disponibilités est terminé.
   bool _isLoaded = false;
+  // Stocke le dernier message d'erreur survenu.
   String? _lastError;
+
+  // --- Getters publics pour accéder à l'état ---
 
   bool get isLoaded => _isLoaded;
   String? get lastError => _lastError;
   List<DateTime> get joursDisponibles => _joursDisponibles;
 
-  /// 🔑 Récupérer les headers d'authentification Firebase
+  /// Méthode privée pour construire les en-têtes de requête avec le jeton d'authentification Firebase.
   Future<Map<String, String>> _getAuthHeaders() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       final token = await user.getIdToken();
       return {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer $token', // 🔥 TOKEN FIREBASE
+        'Authorization': 'Bearer $token',
       };
     }
+    // Retourne des en-têtes de base si l'utilisateur n'est pas connecté.
     return {
       'Content-Type': 'application/json',
     };
   }
 
-  /// 🔁 Charger les jours avec au moins un créneau disponible - VERSION AVEC AUTH
+  /// Charge les jours ayant des créneaux disponibles pour une coiffeuse et une durée données.
+  ///
+  /// Cette méthode itère sur les 14 prochains jours et appelle l'API pour chaque jour.
   Future<void> loadDisponibilites(String coiffeuseId, int duree) async {
-    print("🔄 === DÉBUT CHARGEMENT DISPONIBILITÉS ===");
-    print("🔄 CoiffeuseId: $coiffeuseId");
-    print("🔄 Durée: $duree minutes");
+    if (kDebugMode) {
+      print("=== DÉBUT CHARGEMENT DISPONIBILITÉS ===");
+    }
+    if (kDebugMode) {
+      print("CoiffeuseId: $coiffeuseId");
+    }
+    if (kDebugMode) {
+      print("Durée: $duree minutes");
+    }
 
-    // 🛡️ Validation des paramètres d'entrée
+    // Validation des paramètres d'entrée pour éviter des appels API inutiles.
     if (coiffeuseId.isEmpty || duree <= 0) {
       _lastError = "Paramètres invalides: coiffeuseId='$coiffeuseId', duree=$duree";
-      print("❌ $_lastError");
+      if (kDebugMode) {
+        print("$_lastError");
+      }
       _isLoaded = false;
       notifyListeners();
       return;
     }
 
     final now = DateTime.now();
-    final end = now.add(Duration(days: 14));
+    final end = now.add(const Duration(days: 14));
     List<DateTime> joursOK = [];
 
+    // Réinitialisation de l'état avant de commencer le chargement.
     _isLoaded = false;
     _lastError = null;
-    notifyListeners(); // Informer que le chargement commence
+    notifyListeners();
 
     try {
-      // 🔑 Récupérer les headers avec authentification
       final headers = await _getAuthHeaders();
-      print("🔑 Headers d'authentification: ${headers.keys.toList()}");
+      if (kDebugMode) {
+        print("Headers d'authentification: ${headers.keys.toList()}");
+      }
 
       int joursAnalyses = 0;
       int joursAvecCreneaux = 0;
 
+      // Boucle sur chaque jour de la période de 14 jours.
       for (int i = 0; i <= end.difference(now).inDays; i++) {
         final date = now.add(Duration(days: i));
         final dateStr = DateFormat('yyyy-MM-dd').format(date);
         joursAnalyses++;
 
         final url = Uri.parse("https://www.hairbnb.site/api/get_disponibilites_client/$coiffeuseId/?date=$dateStr&duree=$duree");
-        print("📡 API Call [$i/${end.difference(now).inDays}]: $url");
+        if (kDebugMode) {
+          print("API Call [$i/${end.difference(now).inDays}]: $url");
+        }
 
         try {
-          // 🔥 APPEL AVEC HEADERS D'AUTH
+          // Appel API sécurisé avec les en-têtes d'authentification.
           final response = await http.get(url, headers: headers);
-          print("📡 Response [$dateStr]: Status ${response.statusCode}");
+          if (kDebugMode) {
+            print("Response [$dateStr]: Status ${response.statusCode}");
+          }
 
           if (response.statusCode == 200) {
             final data = json.decode(response.body);
-            print("📡 Response data [$dateStr]: $data");
+            if (kDebugMode) {
+              print("Response data [$dateStr]: $data");
+            }
 
-            // 🛡️ Vérification robuste de la structure de réponse
+            // Vérification robuste pour s'assurer que la réponse contient une liste de disponibilités.
             if (data is Map<String, dynamic> && data.containsKey('disponibilites')) {
               final disponibilites = data['disponibilites'];
               if (disponibilites is List && disponibilites.isNotEmpty) {
                 joursOK.add(date);
                 joursAvecCreneaux++;
-                print("✅ Date $dateStr: ${disponibilites.length} créneaux trouvés");
+                if (kDebugMode) {
+                  print("Date $dateStr: ${disponibilites.length} créneaux trouvés");
+                }
               } else {
-                print("📭 Date $dateStr: Aucun créneau disponible");
+                if (kDebugMode) {
+                  print("Date $dateStr: Aucun créneau disponible");
+                }
               }
             } else {
-              print("⚠️ Date $dateStr: Structure de réponse inattendue: $data");
+              if (kDebugMode) {
+                print("Date $dateStr: Structure de réponse inattendue: $data");
+              }
             }
           } else if (response.statusCode == 401) {
-            print("🔐 Date $dateStr: Erreur d'authentification - ${response.body}");
+            if (kDebugMode) {
+              print("Date $dateStr: Erreur d'authentification - ${response.body}");
+            }
             _lastError = "Erreur d'authentification. Veuillez vous reconnecter.";
-            break; // Arrêter si problème d'auth
+            break; // Arrête la boucle en cas de problème d'authentification.
           } else {
-            print("❌ Date $dateStr: Erreur HTTP ${response.statusCode} - ${response.body}");
+            if (kDebugMode) {
+              print("Date $dateStr: Erreur HTTP ${response.statusCode} - ${response.body}");
+            }
           }
         } catch (apiError) {
-          print("❌ Erreur API pour $dateStr: $apiError");
-          // Continue avec les autres dates même si une échoue
+          if (kDebugMode) {
+            print("Erreur API pour $dateStr: $apiError");
+          }
+          // Continue avec les autres dates même si une requête échoue.
         }
 
-        // 🕐 Petit délai pour éviter de surcharger l'API
+        // Ajoute un court délai périodiquement pour ne pas surcharger le serveur.
         if (i % 5 == 0 && i > 0) {
-          await Future.delayed(Duration(milliseconds: 100));
+          await Future.delayed(const Duration(milliseconds: 100));
         }
       }
 
+      // Mise à jour de l'état final après la boucle.
       _joursDisponibles = joursOK;
       _isLoaded = true;
-      if (_lastError == null) {
-        _lastError = null; // Pas d'erreur d'auth
-      }
+      _lastError ??= null;
 
-      print("✅ === CHARGEMENT TERMINÉ ===");
-      print("✅ Jours analysés: $joursAnalyses");
-      print("✅ Jours avec créneaux: $joursAvecCreneaux");
-      print("✅ Jours disponibles: ${_joursDisponibles.length}");
+      if (kDebugMode) {
+        print("=== CHARGEMENT TERMINÉ ===");
+      }
+      if (kDebugMode) {
+        print("Jours analysés: $joursAnalyses");
+      }
+      if (kDebugMode) {
+        print("Jours avec créneaux: $joursAvecCreneaux");
+      }
+      if (kDebugMode) {
+        print("Jours disponibles: ${_joursDisponibles.length}");
+      }
 
       notifyListeners();
 
-      // 🎯 Si aucun jour disponible trouvé, log des informations de debug
+      // Si aucun jour n'a été trouvé, met à jour l'erreur pour informer l'utilisateur.
       if (_joursDisponibles.isEmpty && _lastError == null) {
-        print("⚠️ AUCUN JOUR DISPONIBLE - Causes possibles:");
-        print("   1. La coiffeuse n'a pas configuré ses horaires");
-        print("   2. Tous les créneaux sont déjà réservés");
-        print("   3. La durée demandée ($duree min) est trop longue");
-        print("   4. Problème côté serveur/base de données");
+        if (kDebugMode) {
+          print("AUCUN JOUR DISPONIBLE - Causes possibles:");
+        }
+        if (kDebugMode) {
+          print("   1. La coiffeuse n'a pas configuré ses horaires");
+        }
+        if (kDebugMode) {
+          print("   2. Tous les créneaux sont déjà réservés");
+        }
+        if (kDebugMode) {
+          print("   3. La durée demandée ($duree min) est trop longue");
+        }
+        if (kDebugMode) {
+          print("   4. Problème côté serveur/base de données");
+        }
         _lastError = "Aucune disponibilité trouvée pour les 14 prochains jours";
       }
 
     } catch (e) {
       _lastError = "Erreur lors du chargement des disponibilités: $e";
-      print("❌ ERREUR GLOBALE: $_lastError");
+      if (kDebugMode) {
+        print("ERREUR GLOBALE: $_lastError");
+      }
       _isLoaded = false;
       notifyListeners();
     }
   }
 
-  /// 🔍 Récupérer les créneaux pour une date donnée - VERSION AVEC AUTH
+  /// Récupère la liste des créneaux horaires pour un jour spécifique.
   Future<List<Map<String, String>>> getCreneauxPourJour(String dateStr, String coiffeuseId, int duree) async {
-    print("🔍 === RÉCUPÉRATION CRÉNEAUX ===");
-    print("🔍 Date: $dateStr");
-    print("🔍 CoiffeuseId: $coiffeuseId");
-    print("🔍 Durée: $duree");
+    if (kDebugMode) {
+      print("=== RÉCUPÉRATION CRÉNEAUX ===");
+    }
+    if (kDebugMode) {
+      print("Date: $dateStr");
+    }
+    if (kDebugMode) {
+      print("CoiffeuseId: $coiffeuseId");
+    }
+    if (kDebugMode) {
+      print("Durée: $duree");
+    }
 
     final url = Uri.parse("https://www.hairbnb.site/api/get_disponibilites_client/$coiffeuseId/?date=$dateStr&duree=$duree");
-    print("🔍 URL: $url");
+    if (kDebugMode) {
+      print("URL: $url");
+    }
 
     try {
-      // 🔑 Headers avec authentification
       final headers = await _getAuthHeaders();
       final response = await http.get(url, headers: headers);
-      print("🔍 Status: ${response.statusCode}");
-      print("🔍 Body: ${response.body}");
+      if (kDebugMode) {
+        print("Status: ${response.statusCode}");
+      }
+      if (kDebugMode) {
+        print("Body: ${response.body}");
+      }
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -167,40 +266,58 @@ class DisponibilitesProvider with ChangeNotifier {
             };
           }).toList();
 
-          print("✅ ${creneaux.length} créneaux récupérés:");
+          if (kDebugMode) {
+            print("${creneaux.length} créneaux récupérés:");
+          }
           for (var creneau in creneaux) {
-            print("   - ${creneau['debut']} → ${creneau['fin']}");
+            if (kDebugMode) {
+              print("   - ${creneau['debut']} → ${creneau['fin']}");
+            }
           }
 
           return creneaux;
         } else {
-          print("⚠️ Structure de réponse incorrecte: $data");
+          if (kDebugMode) {
+            print("Structure de réponse incorrecte: $data");
+          }
           return [];
         }
       } else if (response.statusCode == 401) {
-        print("🔐 Erreur d'authentification: ${response.body}");
+        if (kDebugMode) {
+          print("Erreur d'authentification: ${response.body}");
+        }
         return [];
       } else {
-        print("❌ Erreur HTTP: ${response.statusCode} - ${response.body}");
+        if (kDebugMode) {
+          print("Erreur HTTP: ${response.statusCode} - ${response.body}");
+        }
         return [];
       }
     } catch (e) {
-      print("❌ Erreur réseau: $e");
+      if (kDebugMode) {
+        print("Erreur réseau: $e");
+      }
       return [];
     }
   }
 
-  // Vérifier si un jour est disponible
+  /// Vérifie si un jour donné est présent dans la liste des jours disponibles.
+  ///
+  /// Utilisé pour l'affichage dans le calendrier de l'interface.
   bool isJourDispo(DateTime day) {
     bool dispo = _joursDisponibles.any((d) =>
     d.year == day.year && d.month == day.month && d.day == day.day);
-    print("🔍 isJourDispo(${DateFormat('yyyy-MM-dd').format(day)}): $dispo");
+    if (kDebugMode) {
+      print("isJourDispo(${DateFormat('yyyy-MM-dd').format(day)}): $dispo");
+    }
     return dispo;
   }
 
-  // Méthode pour forcer le rechargement
+  /// Efface l'état actuel et force un rechargement complet des disponibilités.
   Future<void> reloadDisponibilites(String coiffeuseId, int duree) async {
-    print("🔄 Rechargement forcé des disponibilités...");
+    if (kDebugMode) {
+      print("Rechargement forcé des disponibilités...");
+    }
     _joursDisponibles.clear();
     _isLoaded = false;
     _lastError = null;
@@ -209,7 +326,7 @@ class DisponibilitesProvider with ChangeNotifier {
     await loadDisponibilites(coiffeuseId, duree);
   }
 
-  // Méthode de diagnostic
+  /// Retourne une carte d'informations de diagnostic sur l'état actuel du provider.
   Map<String, dynamic> getDiagnosticInfo() {
     return {
       'isLoaded': _isLoaded,
@@ -223,18 +340,11 @@ class DisponibilitesProvider with ChangeNotifier {
 
 
 
-
-
-
-
-
-
-
-
 // import 'package:flutter/material.dart';
 // import 'package:http/http.dart' as http;
 // import 'dart:convert';
 // import 'package:intl/intl.dart';
+// import 'package:firebase_auth/firebase_auth.dart'; // 🔥 AJOUT
 //
 // class DisponibilitesProvider with ChangeNotifier {
 //   List<DateTime> _joursDisponibles = [];
@@ -245,7 +355,22 @@ class DisponibilitesProvider with ChangeNotifier {
 //   String? get lastError => _lastError;
 //   List<DateTime> get joursDisponibles => _joursDisponibles;
 //
-//   /// 🔁 Charger les jours avec au moins un créneau disponible - VERSION CORRIGÉE
+//   /// 🔑 Récupérer les headers d'authentification Firebase
+//   Future<Map<String, String>> _getAuthHeaders() async {
+//     final user = FirebaseAuth.instance.currentUser;
+//     if (user != null) {
+//       final token = await user.getIdToken();
+//       return {
+//         'Content-Type': 'application/json',
+//         'Authorization': 'Bearer $token', // 🔥 TOKEN FIREBASE
+//       };
+//     }
+//     return {
+//       'Content-Type': 'application/json',
+//     };
+//   }
+//
+//   /// 🔁 Charger les jours avec au moins un créneau disponible - VERSION AVEC AUTH
 //   Future<void> loadDisponibilites(String coiffeuseId, int duree) async {
 //     print("🔄 === DÉBUT CHARGEMENT DISPONIBILITÉS ===");
 //     print("🔄 CoiffeuseId: $coiffeuseId");
@@ -269,6 +394,10 @@ class DisponibilitesProvider with ChangeNotifier {
 //     notifyListeners(); // Informer que le chargement commence
 //
 //     try {
+//       // 🔑 Récupérer les headers avec authentification
+//       final headers = await _getAuthHeaders();
+//       print("🔑 Headers d'authentification: ${headers.keys.toList()}");
+//
 //       int joursAnalyses = 0;
 //       int joursAvecCreneaux = 0;
 //
@@ -281,7 +410,8 @@ class DisponibilitesProvider with ChangeNotifier {
 //         print("📡 API Call [$i/${end.difference(now).inDays}]: $url");
 //
 //         try {
-//           final response = await http.get(url);
+//           // 🔥 APPEL AVEC HEADERS D'AUTH
+//           final response = await http.get(url, headers: headers);
 //           print("📡 Response [$dateStr]: Status ${response.statusCode}");
 //
 //           if (response.statusCode == 200) {
@@ -301,6 +431,10 @@ class DisponibilitesProvider with ChangeNotifier {
 //             } else {
 //               print("⚠️ Date $dateStr: Structure de réponse inattendue: $data");
 //             }
+//           } else if (response.statusCode == 401) {
+//             print("🔐 Date $dateStr: Erreur d'authentification - ${response.body}");
+//             _lastError = "Erreur d'authentification. Veuillez vous reconnecter.";
+//             break; // Arrêter si problème d'auth
 //           } else {
 //             print("❌ Date $dateStr: Erreur HTTP ${response.statusCode} - ${response.body}");
 //           }
@@ -317,26 +451,24 @@ class DisponibilitesProvider with ChangeNotifier {
 //
 //       _joursDisponibles = joursOK;
 //       _isLoaded = true;
-//       _lastError = null;
+//       if (_lastError == null) {
+//         _lastError = null; // Pas d'erreur d'auth
+//       }
 //
 //       print("✅ === CHARGEMENT TERMINÉ ===");
 //       print("✅ Jours analysés: $joursAnalyses");
 //       print("✅ Jours avec créneaux: $joursAvecCreneaux");
 //       print("✅ Jours disponibles: ${_joursDisponibles.length}");
-//       for (var jour in _joursDisponibles) {
-//         print("   - ${DateFormat('yyyy-MM-dd (EEEE)', 'fr_FR').format(jour)}");
-//       }
 //
 //       notifyListeners();
 //
 //       // 🎯 Si aucun jour disponible trouvé, log des informations de debug
-//       if (_joursDisponibles.isEmpty) {
+//       if (_joursDisponibles.isEmpty && _lastError == null) {
 //         print("⚠️ AUCUN JOUR DISPONIBLE - Causes possibles:");
 //         print("   1. La coiffeuse n'a pas configuré ses horaires");
 //         print("   2. Tous les créneaux sont déjà réservés");
 //         print("   3. La durée demandée ($duree min) est trop longue");
 //         print("   4. Problème côté serveur/base de données");
-//         print("   5. API endpoint incorrect ou indisponible");
 //         _lastError = "Aucune disponibilité trouvée pour les 14 prochains jours";
 //       }
 //
@@ -348,15 +480,7 @@ class DisponibilitesProvider with ChangeNotifier {
 //     }
 //   }
 //
-//   /// 🔍 Vérifier si un jour est disponible
-//   bool isJourDispo(DateTime day) {
-//     bool dispo = _joursDisponibles.any((d) =>
-//     d.year == day.year && d.month == day.month && d.day == day.day);
-//     print("🔍 isJourDispo(${DateFormat('yyyy-MM-dd').format(day)}): $dispo");
-//     return dispo;
-//   }
-//
-//   /// 🔍 Récupérer les créneaux pour une date donnée - VERSION CORRIGÉE
+//   /// 🔍 Récupérer les créneaux pour une date donnée - VERSION AVEC AUTH
 //   Future<List<Map<String, String>>> getCreneauxPourJour(String dateStr, String coiffeuseId, int duree) async {
 //     print("🔍 === RÉCUPÉRATION CRÉNEAUX ===");
 //     print("🔍 Date: $dateStr");
@@ -367,7 +491,9 @@ class DisponibilitesProvider with ChangeNotifier {
 //     print("🔍 URL: $url");
 //
 //     try {
-//       final response = await http.get(url);
+//       // 🔑 Headers avec authentification
+//       final headers = await _getAuthHeaders();
+//       final response = await http.get(url, headers: headers);
 //       print("🔍 Status: ${response.statusCode}");
 //       print("🔍 Body: ${response.body}");
 //
@@ -393,6 +519,9 @@ class DisponibilitesProvider with ChangeNotifier {
 //           print("⚠️ Structure de réponse incorrecte: $data");
 //           return [];
 //         }
+//       } else if (response.statusCode == 401) {
+//         print("🔐 Erreur d'authentification: ${response.body}");
+//         return [];
 //       } else {
 //         print("❌ Erreur HTTP: ${response.statusCode} - ${response.body}");
 //         return [];
@@ -403,7 +532,15 @@ class DisponibilitesProvider with ChangeNotifier {
 //     }
 //   }
 //
-//   /// 🔄 Méthode pour forcer le rechargement
+//   // Vérifier si un jour est disponible
+//   bool isJourDispo(DateTime day) {
+//     bool dispo = _joursDisponibles.any((d) =>
+//     d.year == day.year && d.month == day.month && d.day == day.day);
+//     print("🔍 isJourDispo(${DateFormat('yyyy-MM-dd').format(day)}): $dispo");
+//     return dispo;
+//   }
+//
+//   // Méthode pour forcer le rechargement
 //   Future<void> reloadDisponibilites(String coiffeuseId, int duree) async {
 //     print("🔄 Rechargement forcé des disponibilités...");
 //     _joursDisponibles.clear();
@@ -414,7 +551,7 @@ class DisponibilitesProvider with ChangeNotifier {
 //     await loadDisponibilites(coiffeuseId, duree);
 //   }
 //
-//   /// 📊 Méthode de diagnostic
+//   // Méthode de diagnostic
 //   Map<String, dynamic> getDiagnosticInfo() {
 //     return {
 //       'isLoaded': _isLoaded,
@@ -425,141 +562,3 @@ class DisponibilitesProvider with ChangeNotifier {
 //   }
 // }
 //
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-//
-// // import 'package:flutter/material.dart';
-// // import 'package:http/http.dart' as http;
-// // import 'dart:convert';
-// // import 'package:intl/intl.dart';
-// //
-// // class DisponibilitesProvider with ChangeNotifier {
-// //   List<DateTime> _joursDisponibles = [];
-// //   bool _isLoaded = false;
-// //   bool get isLoaded => _isLoaded;
-// //
-// //   List<DateTime> get joursDisponibles => _joursDisponibles;
-// //
-// //   /// 🔁 Charger les jours avec au moins un créneau disponible
-// //   Future<void> loadDisponibilites(String coiffeuseId, int duree) async {
-// //     final now = DateTime.now();
-// //     final end = now.add(Duration(days: 14));
-// //     List<DateTime> joursOK = [];
-// //
-// //     try {
-// //       for (int i = 0; i <= end.difference(now).inDays; i++) {
-// //         final date = now.add(Duration(days: i));
-// //         final dateStr = DateFormat('yyyy-MM-dd').format(date);
-// //
-// //         final url = Uri.parse("https://www.hairbnb.site/api/get_disponibilites_client/$coiffeuseId/?date=$dateStr&duree=$duree");
-// //         final response = await http.get(url);
-// //
-// //         if (response.statusCode == 200) {
-// //           final data = json.decode(response.body);
-// //           if ((data['disponibilites'] as List).isNotEmpty) {
-// //             joursOK.add(date);
-// //           }
-// //         }
-// //       }
-// //
-// //       _joursDisponibles = joursOK;
-// //       _isLoaded = true;
-// //       notifyListeners();
-// //     } catch (e) {
-// //       print("Erreur lors du chargement des disponibilités : $e");
-// //       _isLoaded = false;
-// //       notifyListeners();
-// //     }
-// //   }
-// //
-// //   /// 🔍 Vérifier si un jour est disponible
-// //   bool isJourDispo(DateTime day) {
-// //     return _joursDisponibles.any((d) =>
-// //     d.year == day.year && d.month == day.month && d.day == day.day);
-// //   }
-// //
-// //   /// 🔍 Récupérer les créneaux pour une date donnée
-// //   Future<List<Map<String, String>>> getCreneauxPourJour(String dateStr, String coiffeuseId, int duree) async {
-// //     final url = Uri.parse("https://www.hairbnb.site/api/get_disponibilites_client/$coiffeuseId/?date=$dateStr&duree=$duree");
-// //     final response = await http.get(url);
-// //
-// //     if (response.statusCode == 200) {
-// //       final data = json.decode(response.body);
-// //       final slots = data['disponibilites'] as List;
-// //       return slots.map<Map<String, String>>((slot) => {
-// //         'debut': slot['debut'],
-// //         'fin': slot['fin'],
-// //       }).toList();
-// //     }
-// //
-// //     return [];
-// //   }
-// // }
-// //
-// //
-// //
-// //
-// //
-// //
-// //
-// // // import 'package:flutter/material.dart';
-// // // import 'package:http/http.dart' as http;
-// // // import 'dart:convert';
-// // // import 'package:intl/intl.dart';
-// // //
-// // // class DisponibilitesProvider with ChangeNotifier {
-// // //   List<DateTime> _joursDisponibles = [];
-// // //
-// // //   List<DateTime> get joursDisponibles => _joursDisponibles;
-// // //
-// // //   /// 🔁 Charger les jours avec au moins un créneau disponible
-// // //   Future<void> loadDisponibilites(String coiffeuseId, int duree) async {
-// // //     final now = DateTime.now();
-// // //     final end = now.add(Duration(days: 14));
-// // //     List<DateTime> joursOK = [];
-// // //
-// // //     for (int i = 0; i <= end.difference(now).inDays; i++) {
-// // //       final date = now.add(Duration(days: i));
-// // //       final dateStr = DateFormat('yyyy-MM-dd').format(date);
-// // //
-// // //       final url = Uri.parse("https://www.hairbnb.site/api/get_disponibilites_client/$coiffeuseId/?date=$dateStr&duree=$duree");
-// // //       final response = await http.get(url);
-// // //
-// // //       if (response.statusCode == 200) {
-// // //         final data = json.decode(response.body);
-// // //         if ((data['disponibilites'] as List).isNotEmpty) {
-// // //           joursOK.add(date);
-// // //         }
-// // //       }
-// // //     }
-// // //
-// // //     _joursDisponibles = joursOK;
-// // //     notifyListeners();
-// // //   }
-// // //
-// // //   /// 🔍 Récupérer les créneaux pour une date donnée
-// // //   Future<List<Map<String, String>>> getCreneauxPourJour(String dateStr, String coiffeuseId, int duree) async {
-// // //     final url = Uri.parse("https://www.hairbnb.site/api/get_disponibilites_client/$coiffeuseId/?date=$dateStr&duree=$duree");
-// // //     final response = await http.get(url);
-// // //
-// // //     if (response.statusCode == 200) {
-// // //       final data = json.decode(response.body);
-// // //       final slots = data['disponibilites'] as List;
-// // //       return slots.map<Map<String, String>>((slot) => {
-// // //         'debut': slot['debut'],
-// // //         'fin': slot['fin'],
-// // //       }).toList();
-// // //     }
-// // //
-// // //     return [];
-// // //   }
-// // // }

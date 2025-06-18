@@ -1,15 +1,48 @@
-﻿// models/salon_details_for_geo.dart
+﻿/****************************************************************************************
+ *
+ * MODÈLES DE DONNÉES : GESTION DE SALONS GÉOLOCALISÉS
+ * Fichiers : models/salon_details_for_geo.dart, models/salons_response.dart
+ *
+ * OBJECTIF :
+ * Cet ensemble de classes modélise les données nécessaires pour gérer et afficher des
+ * salons de coiffure avec un accent particulier sur la géolocalisation. Ils sont conçus
+ * pour parser des réponses d'API qui retournent des salons à proximité d'un utilisateur,
+ * et incluent de nombreux accesseurs (getters) pour faciliter la manipulation et
+ * l'affichage de ces données dans l'interface utilisateur.
+ *
+ * STRUCTURE DES CLASSES :
+ * - SalonsResponse : Le modèle "enveloppe" de haut niveau qui représente la réponse
+ * complète de l'API, incluant un statut et une liste de salons.
+ * - SalonDetailsForGeo : Le modèle de données principal pour un salon, contenant ses
+ * informations, sa géolocalisation, sa distance, et une liste de ses coiffeuses.
+ * - CoiffeuseDetailsForGeo : Un modèle détaillé pour une coiffeuse au sein d'un salon.
+ *
+ *****************************************************************************************/
+
+// Fichier : models/salon_details_for_geo.dart
+
+/// Modèle détaillé pour une coiffeuse, optimisé pour les contextes de géolocalisation.
 class CoiffeuseDetailsForGeo {
+  /// L'identifiant unique de l'entité coiffeuse.
   final int idTblCoiffeuse;
+  /// L'identifiant de l'utilisateur associé.
   final int idTblUser;
+  /// L'identifiant unique universel (UUID) de l'utilisateur.
   final String uuid;
+  /// Le nom de famille de la coiffeuse.
   final String nom;
+  /// Le prénom de la coiffeuse.
   final String prenom;
+  /// Le rôle de la coiffeuse dans le salon (ex: "Gérante").
   final String role;
+  /// Le type de profil (ex: "Coiffeuse").
   final String type;
+  /// Booléen indiquant si cette coiffeuse est la propriétaire du salon.
   final bool estProprietaire;
+  /// Le nom commercial de la coiffeuse, si elle en a un.
   final String? nomCommercial;
 
+  /// Constructeur pour créer une instance de [CoiffeuseDetailsForGeo].
   CoiffeuseDetailsForGeo({
     required this.idTblCoiffeuse,
     required this.idTblUser,
@@ -22,6 +55,7 @@ class CoiffeuseDetailsForGeo {
     this.nomCommercial,
   });
 
+  /// Construit une instance de [CoiffeuseDetailsForGeo] à partir d'une map JSON.
   factory CoiffeuseDetailsForGeo.fromJson(Map<String, dynamic> json) {
     return CoiffeuseDetailsForGeo(
       idTblCoiffeuse: json['idTblCoiffeuse'] ?? 0,
@@ -36,6 +70,7 @@ class CoiffeuseDetailsForGeo {
     );
   }
 
+  /// Convertit l'instance en une map JSON.
   Map<String, dynamic> toJson() {
     return {
       'idTblCoiffeuse': idTblCoiffeuse,
@@ -50,25 +85,38 @@ class CoiffeuseDetailsForGeo {
     };
   }
 
-  // Getter pour le nom complet
+  /// Accesseur (getter) qui retourne le nom complet (prénom + nom).
   String get nomComplet => '$prenom $nom';
 
-  // Getter pour affichage commercial
+  /// Accesseur (getter) qui retourne le nom à afficher, en priorisant le nom
+  /// commercial sur le nom complet personnel.
   String get affichageNom => nomCommercial?.isNotEmpty == true ? nomCommercial! : nomComplet;
 }
 
+/// Modèle principal pour un salon, enrichi d'informations de géolocalisation.
 class SalonDetailsForGeo {
+  /// L'identifiant unique du salon.
   final int idTblSalon;
+  /// Le nom du salon.
   final String nom;
+  /// Le slogan du salon (optionnel).
   final String? slogan;
+  /// L'URL du logo du salon (optionnel).
   final String? logo;
+  /// L'adresse textuelle du salon.
   final String position;
+  /// La coordonnée de latitude du salon (optionnelle).
   final double? latitude;
+  /// La coordonnée de longitude du salon (optionnelle).
   final double? longitude;
+  /// La liste des identifiants des coiffeuses du salon.
   final List<int> coiffeuseIds;
+  /// La liste des objets détaillés pour chaque coiffeuse du salon.
   final List<CoiffeuseDetailsForGeo> coiffeusesDetails;
+  /// La distance calculée entre l'utilisateur et le salon (en km).
   final double distance;
 
+  /// Constructeur pour créer une instance de [SalonDetailsForGeo].
   SalonDetailsForGeo({
     required this.idTblSalon,
     required this.nom,
@@ -82,6 +130,7 @@ class SalonDetailsForGeo {
     required this.distance,
   });
 
+  /// Construit une instance de [SalonDetailsForGeo] à partir d'une map JSON.
   factory SalonDetailsForGeo.fromJson(Map<String, dynamic> json) {
     return SalonDetailsForGeo(
       idTblSalon: json['idTblSalon'] ?? 0,
@@ -99,6 +148,7 @@ class SalonDetailsForGeo {
     );
   }
 
+  /// Convertit l'instance en une map JSON.
   Map<String, dynamic> toJson() {
     return {
       'idTblSalon': idTblSalon,
@@ -114,7 +164,8 @@ class SalonDetailsForGeo {
     };
   }
 
-  // Getter pour le propriétaire du salon
+  /// Accesseur (getter) qui recherche et retourne la coiffeuse propriétaire du salon.
+  /// Retourne `null` si aucune propriétaire n'est trouvée, évitant ainsi les erreurs.
   CoiffeuseDetailsForGeo? get proprietaire {
     try {
       return coiffeusesDetails.firstWhere((c) => c.estProprietaire);
@@ -123,19 +174,21 @@ class SalonDetailsForGeo {
     }
   }
 
-  // Getter pour le nombre de coiffeuses
+  /// Accesseur (getter) qui retourne le nombre total de coiffeuses dans le salon.
   int get nombreCoiffeuses => coiffeusesDetails.length;
 
-  // Getter pour savoir si le salon a un logo
+  /// Accesseur (getter) qui vérifie si le salon a un logo valide.
   bool get hasLogo => logo != null && logo!.isNotEmpty;
 
-  // Getter pour l'URL complète du logo (si besoin d'ajouter base URL)
+  /// Méthode pour obtenir l'URL complète du logo.
+  /// Si l'URL du logo est relative, elle la préfixe avec une URL de base.
   String? getLogoUrl(String? baseUrl) {
     if (!hasLogo || baseUrl == null) return logo;
     return logo!.startsWith('http') ? logo : '$baseUrl$logo';
   }
 
-  // Getter pour la distance formatée
+  /// Accesseur (getter) qui formate la distance pour un affichage lisible.
+  /// Affiche en mètres (m) si moins d'1 km, sinon en kilomètres (km).
   String get distanceFormatee {
     if (distance < 1) {
       return '${(distance * 1000).round()} m';
@@ -144,18 +197,25 @@ class SalonDetailsForGeo {
   }
 }
 
-// models/salons_response.dart
+// --- Fichier : models/salons_response.dart ---
+
+/// Modèle "enveloppe" qui représente la structure complète de la réponse de l'API des salons.
 class SalonsResponse {
+  /// Le statut de la réponse de l'API (ex: "success", "error").
   final String status;
+  /// Le nombre total de résultats trouvés.
   final int count;
+  /// La liste des salons retournés par l'API.
   final List<SalonDetailsForGeo> salons;
 
+  /// Constructeur pour créer une instance de [SalonsResponse].
   SalonsResponse({
     required this.status,
     required this.count,
     required this.salons,
   });
 
+  /// Construit une instance de [SalonsResponse] à partir d'une map JSON.
   factory SalonsResponse.fromJson(Map<String, dynamic> json) {
     return SalonsResponse(
       status: json['status'] ?? 'error',
@@ -166,6 +226,7 @@ class SalonsResponse {
     );
   }
 
+  /// Convertit l'instance en une map JSON.
   Map<String, dynamic> toJson() {
     return {
       'status': status,
@@ -174,10 +235,11 @@ class SalonsResponse {
     };
   }
 
-  // Getter pour vérifier si la requête a réussi
+  /// Accesseur (getter) qui retourne `true` si le statut de la réponse est "success".
   bool get isSuccess => status == 'success';
 
-  // Getter pour les salons triés par distance
+  /// Accesseur (getter) qui retourne une nouvelle liste des salons triés par
+  /// distance croissante, sans modifier la liste originale.
   List<SalonDetailsForGeo> get salonsTries {
     final List<SalonDetailsForGeo> sorted = List.from(salons);
     sorted.sort((a, b) => a.distance.compareTo(b.distance));
@@ -192,76 +254,189 @@ class SalonsResponse {
 
 
 
-
-// // lib/models/salon_details_geo.dart
+// // models/salon_details_for_geo.dart
+// class CoiffeuseDetailsForGeo {
+//   final int idTblCoiffeuse;
+//   final int idTblUser;
+//   final String uuid;
+//   final String nom;
+//   final String prenom;
+//   final String role;
+//   final String type;
+//   final bool estProprietaire;
+//   final String? nomCommercial;
 //
-// import 'dart:convert';
+//   CoiffeuseDetailsForGeo({
+//     required this.idTblCoiffeuse,
+//     required this.idTblUser,
+//     required this.uuid,
+//     required this.nom,
+//     required this.prenom,
+//     required this.role,
+//     required this.type,
+//     required this.estProprietaire,
+//     this.nomCommercial,
+//   });
 //
-// SalonDetailsGeo salonDetailsGeoFromJson(String str) => SalonDetailsGeo.fromJson(json.decode(str)['salon']);
+//   factory CoiffeuseDetailsForGeo.fromJson(Map<String, dynamic> json) {
+//     return CoiffeuseDetailsForGeo(
+//       idTblCoiffeuse: json['idTblCoiffeuse'] ?? 0,
+//       idTblUser: json['idTblUser'] ?? 0,
+//       uuid: json['uuid'] ?? '',
+//       nom: json['nom'] ?? '',
+//       prenom: json['prenom'] ?? '',
+//       role: json['role'] ?? '',
+//       type: json['type'] ?? '',
+//       estProprietaire: json['est_proprietaire'] ?? false,
+//       nomCommercial: json['nom_commercial'],
+//     );
+//   }
 //
-// class SalonDetailsGeo {
+//   Map<String, dynamic> toJson() {
+//     return {
+//       'idTblCoiffeuse': idTblCoiffeuse,
+//       'idTblUser': idTblUser,
+//       'uuid': uuid,
+//       'nom': nom,
+//       'prenom': prenom,
+//       'role': role,
+//       'type': type,
+//       'est_proprietaire': estProprietaire,
+//       'nom_commercial': nomCommercial,
+//     };
+//   }
+//
+//   // Getter pour le nom complet
+//   String get nomComplet => '$prenom $nom';
+//
+//   // Getter pour affichage commercial
+//   String get affichageNom => nomCommercial?.isNotEmpty == true ? nomCommercial! : nomComplet;
+// }
+//
+// class SalonDetailsForGeo {
 //   final int idTblSalon;
 //   final String nom;
 //   final String? slogan;
 //   final String? logo;
 //   final String position;
-//   final double latitude;
-//   final double longitude;
+//   final double? latitude;
+//   final double? longitude;
 //   final List<int> coiffeuseIds;
-//   final List<CoiffeuseDetailGeo> coiffeusesDetails;
+//   final List<CoiffeuseDetailsForGeo> coiffeusesDetails;
+//   final double distance;
 //
-//   SalonDetailsGeo({
+//   SalonDetailsForGeo({
 //     required this.idTblSalon,
 //     required this.nom,
 //     this.slogan,
 //     this.logo,
 //     required this.position,
-//     required this.latitude,
-//     required this.longitude,
+//     this.latitude,
+//     this.longitude,
 //     required this.coiffeuseIds,
 //     required this.coiffeusesDetails,
+//     required this.distance,
 //   });
 //
-//   factory SalonDetailsGeo.fromJson(Map<String, dynamic> json) => SalonDetailsGeo(
-//     idTblSalon: json["idTblSalon"],
-//     nom: json["nom"],
-//     slogan: json["slogan"],
-//     logo: json["logo"],
-//     position: json["position"],
-//     latitude: (json["latitude"] as num).toDouble(),
-//     longitude: (json["longitude"] as num).toDouble(),
-//     // MODIFIÉ : Ajout d'une protection contre les valeurs nulles pour les listes
-//     coiffeuseIds: json["coiffeuse_ids"] == null ? [] : List<int>.from(json["coiffeuse_ids"].map((x) => x)),
-//     coiffeusesDetails: json["coiffeuses_details"] == null ? [] : List<CoiffeuseDetailGeo>.from(json["coiffeuses_details"].map((x) => CoiffeuseDetailGeo.fromJson(x))),
-//   );
+//   factory SalonDetailsForGeo.fromJson(Map<String, dynamic> json) {
+//     return SalonDetailsForGeo(
+//       idTblSalon: json['idTblSalon'] ?? 0,
+//       nom: json['nom'] ?? '',
+//       slogan: json['slogan'],
+//       logo: json['logo'],
+//       position: json['position'] ?? '0,0',
+//       latitude: json['latitude']?.toDouble(),
+//       longitude: json['longitude']?.toDouble(),
+//       coiffeuseIds: List<int>.from(json['coiffeuse_ids'] ?? []),
+//       coiffeusesDetails: (json['coiffeuses_details'] as List?)
+//           ?.map((x) => CoiffeuseDetailsForGeo.fromJson(x))
+//           .toList() ?? [],
+//       distance: json['distance']?.toDouble() ?? 0.0,
+//     );
+//   }
+//
+//   Map<String, dynamic> toJson() {
+//     return {
+//       'idTblSalon': idTblSalon,
+//       'nom': nom,
+//       'slogan': slogan,
+//       'logo': logo,
+//       'position': position,
+//       'latitude': latitude,
+//       'longitude': longitude,
+//       'coiffeuse_ids': coiffeuseIds,
+//       'coiffeuses_details': coiffeusesDetails.map((x) => x.toJson()).toList(),
+//       'distance': distance,
+//     };
+//   }
+//
+//   // Getter pour le propriétaire du salon
+//   CoiffeuseDetailsForGeo? get proprietaire {
+//     try {
+//       return coiffeusesDetails.firstWhere((c) => c.estProprietaire);
+//     } catch (e) {
+//       return null;
+//     }
+//   }
+//
+//   // Getter pour le nombre de coiffeuses
+//   int get nombreCoiffeuses => coiffeusesDetails.length;
+//
+//   // Getter pour savoir si le salon a un logo
+//   bool get hasLogo => logo != null && logo!.isNotEmpty;
+//
+//   // Getter pour l'URL complète du logo (si besoin d'ajouter base URL)
+//   String? getLogoUrl(String? baseUrl) {
+//     if (!hasLogo || baseUrl == null) return logo;
+//     return logo!.startsWith('http') ? logo : '$baseUrl$logo';
+//   }
+//
+//   // Getter pour la distance formatée
+//   String get distanceFormatee {
+//     if (distance < 1) {
+//       return '${(distance * 1000).round()} m';
+//     }
+//     return '${distance.toStringAsFixed(1)} km';
+//   }
 // }
 //
-// class CoiffeuseDetailGeo {
-//   final int idTblCoiffeuse;
-//   final String nom;
-//   final String prenom;
-//   final String? photoProfil;
-//   final bool estProprietaire;
-//   final String? nomCommercial;
+// // models/salons_response.dart
+// class SalonsResponse {
+//   final String status;
+//   final int count;
+//   final List<SalonDetailsForGeo> salons;
 //
-//   // J'ajoute un champ 'uuid' pour la compatibilité avec votre code de chat
-//   String get uuid => idTblCoiffeuse.toString();
-//
-//   CoiffeuseDetailGeo({
-//     required this.idTblCoiffeuse,
-//     required this.nom,
-//     required this.prenom,
-//     this.photoProfil,
-//     required this.estProprietaire,
-//     this.nomCommercial,
+//   SalonsResponse({
+//     required this.status,
+//     required this.count,
+//     required this.salons,
 //   });
 //
-//   factory CoiffeuseDetailGeo.fromJson(Map<String, dynamic> json) => CoiffeuseDetailGeo(
-//     idTblCoiffeuse: json["idTblCoiffeuse"],
-//     nom: json["nom"],
-//     prenom: json["prenom"],
-//     photoProfil: json["photo_profil"],
-//     estProprietaire: json["est_proprietaire"] ?? false, // Protection ajoutée ici aussi
-//     nomCommercial: json["nom_commercial"],
-//   );
+//   factory SalonsResponse.fromJson(Map<String, dynamic> json) {
+//     return SalonsResponse(
+//       status: json['status'] ?? 'error',
+//       count: json['count'] ?? 0,
+//       salons: (json['salons'] as List?)
+//           ?.map((x) => SalonDetailsForGeo.fromJson(x))
+//           .toList() ?? [],
+//     );
+//   }
+//
+//   Map<String, dynamic> toJson() {
+//     return {
+//       'status': status,
+//       'count': count,
+//       'salons': salons.map((x) => x.toJson()).toList(),
+//     };
+//   }
+//
+//   // Getter pour vérifier si la requête a réussi
+//   bool get isSuccess => status == 'success';
+//
+//   // Getter pour les salons triés par distance
+//   List<SalonDetailsForGeo> get salonsTries {
+//     final List<SalonDetailsForGeo> sorted = List.from(salons);
+//     sorted.sort((a, b) => a.distance.compareTo(b.distance));
+//     return sorted;
+//   }
 // }

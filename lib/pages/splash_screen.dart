@@ -1,4 +1,31 @@
-// lib/pages/splash_screen.dart
+/// *************************************************************************************************
+///
+/// BANNER : EXPLICATION GÉNÉRALE DE L'ÉCRAN DE DÉMARRAGE (SPLASH SCREEN)
+///
+/// Ce fichier définit `SplashScreen`, un `StatefulWidget` qui est le premier écran
+/// affiché au lancement de l'application.
+///
+/// Objectif :
+/// - Fournir une première impression visuelle agréable avec une animation de fondu.
+/// - Pendant ce temps, vérifier l'état d'authentification de l'utilisateur via Firebase Auth.
+/// - Rediriger l'utilisateur vers la page appropriée :
+/// - `LoginPage` si l'utilisateur n'est pas connecté.
+/// - `HomePage` si l'utilisateur est déjà connecté.
+/// - Gérer le chargement initial des données de l'utilisateur connecté via un Provider.
+///
+/// Fonctionnement :
+/// 1.  `initState` lance une animation et une temporisation.
+/// 2.  Après une courte temporisation, il s'abonne aux changements d'état d'authentification
+/// de Firebase (`authStateChanges`).
+/// 3.  En fonction de la présence d'un utilisateur, il déclenche la navigation.
+/// 4.  Si un utilisateur est trouvé, il tente de charger son profil complet avant de
+/// naviguer vers la page d'accueil. En cas d'échec, il déconnecte l'utilisateur
+/// pour éviter un état incohérent.
+/// 5.  `dispose` nettoie les ressources (écouteur d'authentification, contrôleur d'animation)
+/// pour éviter les fuites de mémoire.
+///
+///*************************************************************************************************
+library;
 
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -8,15 +35,21 @@ import 'package:hairbnb/pages/authentification/login_page.dart';
 import 'package:hairbnb/services/providers/current_user_provider.dart';
 import 'package:provider/provider.dart';
 
+/// Un widget qui sert d'écran de démarrage pour l'application.
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
   @override
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
+/// La classe d'état pour `SplashScreen`.
+/// Le `SingleTickerProviderStateMixin` est nécessaire pour le `AnimationController`.
 class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+  // Abonnement au flux d'authentification de Firebase pour être notifié des changements.
   StreamSubscription<User?>? _authSubscription;
+  // Contrôleur pour gérer la durée et l'état de l'animation.
   late AnimationController _animationController;
+  // Animation de fondu (opacité) contrôlée par `_animationController`.
   late Animation<double> _fadeAnimation;
 
 
@@ -24,42 +57,59 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   void initState() {
     super.initState();
 
+    // Initialise et démarre l'animation.
     _setupAnimation();
+    // Lance la logique de navigation après une courte temporisation.
     _navigateAfterDelay();
   }
 
+  /// Configure et démarre l'animation de fondu.
   void _setupAnimation() {
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
     );
     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(_animationController);
-    _animationController.forward(); // Démarre l'animation dès le début
+    _animationController.forward(); // Lance l'animation.
   }
 
+  /// Gère la redirection de l'utilisateur après un délai.
   Future<void> _navigateAfterDelay() async {
-    await Future.delayed(const Duration(seconds: 2)); // Laisse l'animation jouer
+    // Attend 2 secondes, le temps que l'animation de fondu se termine.
+    await Future.delayed(const Duration(seconds: 2));
+
+    // S'abonne aux changements d'état d'authentification.
     _authSubscription = FirebaseAuth.instance.authStateChanges().listen((User? user) async {
+      // S'assure que le widget est toujours "monté" (affiché) avant de naviguer.
       if (!mounted) return;
+
       if (user == null) {
+        // Si aucun utilisateur n'est connecté, redirige vers la page de connexion.
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const LoginPage()),
         );
       } else {
+        // Si un utilisateur est connecté, tente de charger ses données complètes.
         final currentUserProvider = Provider.of<CurrentUserProvider>(context, listen: false);
         try {
+          // Appelle le provider pour récupérer les informations de l'utilisateur depuis le backend.
           await currentUserProvider.fetchCurrentUser();
 
+          // Une fois les données chargées, redirige vers la page d'accueil.
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (context) => const HomePage()),
           );
         } catch (e) {
+          // En cas d'erreur (ex: profil non trouvé dans la base de données), on gère le cas.
           debugPrint("Erreur lors de fetchCurrentUser: $e");
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Erreur de chargement de l'utilisateur")),
-          );
+          if(mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text("Erreur de chargement de votre profil.")),
+            );
+          }
+          // Déconnecte l'utilisateur de Firebase pour éviter de rester dans un état invalide.
           FirebaseAuth.instance.signOut();
         }
       }
@@ -68,7 +118,9 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
   @override
   void dispose() {
+    // Annule l'abonnement au flux d'authentification pour éviter les fuites de mémoire.
     _authSubscription?.cancel();
+    // Libère les ressources du contrôleur d'animation.
     _animationController.dispose();
     super.dispose();
   }
@@ -77,11 +129,13 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   Widget build(BuildContext context) {
     return Scaffold(
       body: Center(
+        // Utilise FadeTransition pour appliquer l'animation de fondu à son enfant.
         child: FadeTransition(
           opacity: _fadeAnimation,
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              // Interface simple de l'écran de démarrage.
               const Icon(Icons.cut, size: 80),
               const SizedBox(height: 20),
               const Text(
@@ -92,7 +146,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                 ),
               ),
               const SizedBox(height: 10),
-              const CircularProgressIndicator(),
+              const CircularProgressIndicator(), // Indicateur de chargement.
             ],
           ),
         ),
@@ -108,21 +162,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-//--------------------------------------------l'ajour de chat IA--------------------------------------------------
+// // lib/pages/splash_screen.dart
 //
 // import 'dart:async';
 // import 'package:firebase_auth/firebase_auth.dart';
@@ -134,7 +174,6 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 //
 // class SplashScreen extends StatefulWidget {
 //   const SplashScreen({super.key});
-//
 //   @override
 //   State<SplashScreen> createState() => _SplashScreenState();
 // }
@@ -144,9 +183,11 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 //   late AnimationController _animationController;
 //   late Animation<double> _fadeAnimation;
 //
+//
 //   @override
 //   void initState() {
 //     super.initState();
+//
 //     _setupAnimation();
 //     _navigateAfterDelay();
 //   }
@@ -156,15 +197,12 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 //       vsync: this,
 //       duration: const Duration(seconds: 2),
 //     );
-//
 //     _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(_animationController);
-//
 //     _animationController.forward(); // Démarre l'animation dès le début
 //   }
 //
 //   Future<void> _navigateAfterDelay() async {
 //     await Future.delayed(const Duration(seconds: 2)); // Laisse l'animation jouer
-//
 //     _authSubscription = FirebaseAuth.instance.authStateChanges().listen((User? user) async {
 //       if (!mounted) return;
 //       if (user == null) {
@@ -176,6 +214,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 //         final currentUserProvider = Provider.of<CurrentUserProvider>(context, listen: false);
 //         try {
 //           await currentUserProvider.fetchCurrentUser();
+//
 //           Navigator.pushReplacement(
 //             context,
 //             MaterialPageRoute(builder: (context) => const HomePage()),
@@ -225,446 +264,4 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 //     );
 //   }
 // }
-
-
-
-
-
-
-
-//-------------------------------------29/04/2025 ajour de l'annimation de demarrage de l'application----------------------------------
-// import 'dart:async';
-// import 'package:firebase_auth/firebase_auth.dart';
-// import 'package:flutter/material.dart';
-// import 'package:hairbnb/pages/home_page.dart';
-// import 'package:hairbnb/pages/authentification/login_page.dart';
-// import 'package:hairbnb/services/providers/current_user_provider.dart';
-// import 'package:provider/provider.dart';
 //
-// class SplashScreen extends StatefulWidget {
-//   const SplashScreen({super.key});
-//
-//   @override
-//   State<SplashScreen> createState() => _SplashScreenState();
-// }
-//
-// class _SplashScreenState extends State<SplashScreen> {
-//   StreamSubscription<User?>? _authSubscription;
-//   //AppLinks? _appLinks;
-//   //StreamSubscription<Uri?>? _deepLinkSubscription;
-//
-//   @override
-//   void initState() {
-//     super.initState();
-//     _navigateAfterDelay();
-//   }
-//
-//   Future<void> _navigateAfterDelay() async {
-//     await Future.delayed(const Duration(seconds: 2)); // Attend 2 secondes
-//
-//     _authSubscription = FirebaseAuth.instance.authStateChanges().listen((User? user) async {
-//       if (!mounted) return;
-//       if (user == null) {
-//         Navigator.pushReplacement(
-//           context,
-//           MaterialPageRoute(builder: (context) => const LoginPage()),
-//         );
-//       } else {
-//         final currentUserProvider = Provider.of<CurrentUserProvider>(context, listen: false);
-//         try {
-//           await currentUserProvider.fetchCurrentUser();
-//           Navigator.pushReplacement(
-//             context,
-//             MaterialPageRoute(builder: (context) => const HomePage()),
-//           );
-//         } catch (e) {
-//           debugPrint("Erreur lors de fetchCurrentUser: $e");
-//           ScaffoldMessenger.of(context).showSnackBar(
-//             const SnackBar(content: Text("Erreur de chargement de l'utilisateur")),
-//           );
-//           FirebaseAuth.instance.signOut();
-//         }
-//       }
-//     });
-//   }
-//
-//   // void initState() {
-//   //   super.initState();
-//   //   // Initialiser le gestionnaire de liens profonds
-//   //   //_initDeepLinks();
-//   //   _authSubscription = FirebaseAuth.instance.authStateChanges().listen((User? user) async {
-//   //     if (!mounted) return;
-//   //     if (user == null) {
-//   //       // 🔴 Déconnecté → Aller au login
-//   //       Navigator.pushReplacement(
-//   //         context,
-//   //         MaterialPageRoute(builder: (context) => const LoginPage()),
-//   //       );
-//   //     } else {
-//   //       // ✅ Connecté → Charger les données avant d'aller à HomePage
-//   //       final currentUserProvider = Provider.of<CurrentUserProvider>(context, listen: false);
-//   //       try {
-//   //         await currentUserProvider.fetchCurrentUser();
-//   //         Navigator.pushReplacement(
-//   //           context,
-//   //           MaterialPageRoute(builder: (context) => const HomePage()),
-//   //         );
-//   //       } catch (e) {
-//   //         // En cas d'erreur de récupération de l'utilisateur
-//   //         debugPrint("Erreur lors de fetchCurrentUser: $e");
-//   //         ScaffoldMessenger.of(context).showSnackBar(
-//   //           const SnackBar(content: Text("Erreur de chargement de l'utilisateur")),
-//   //         );
-//   //         FirebaseAuth.instance.signOut(); // Pour forcer retour au login
-//   //       }
-//   //     }
-//   //   });
-//   // }
-//
-//   // Future<void> _initDeepLinks() async {
-//   //   _appLinks = AppLinks();
-//   //   // Vérifier s'il y a un lien initial
-//   //   try {
-//   //     final initialUri = await _appLinks!.getInitialLink();
-//   //     if (initialUri != null && mounted) {
-//   //       debugPrint("Deep link initial: $initialUri");
-//   //       // Appel au service de gestion des deep links
-//   //       DeepLinkHandlerService.handleDeepLink(context, initialUri);
-//   //     }
-//   //   } catch (e) {
-//   //     debugPrint("Erreur lors de la récupération du lien initial: $e");
-//   //   }
-//   //
-//   //   // Écouter les liens entrants
-//   //   _deepLinkSubscription = _appLinks!.uriLinkStream.listen((Uri? uri) {
-//   //     if (uri != null && mounted) {
-//   //       debugPrint("Deep link reçu: $uri");
-//   //       // Appel au service de gestion des deep links
-//   //       DeepLinkHandlerService.handleDeepLink(context, uri);
-//   //     }
-//   //   }, onError: (error) {
-//   //     debugPrint("Erreur de deep link: $error");
-//   //   });
-//   // }
-//
-//   @override
-//   void dispose() {
-//     _authSubscription?.cancel();
-//     //_deepLinkSubscription?.cancel();
-//     super.dispose();
-//   }
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return const Scaffold(
-//       body: Center(
-//         child: CircularProgressIndicator(),
-//       ),
-//     );
-//   }
-// }
-
-
-
-
-// import 'dart:async';
-// import 'package:app_links/app_links.dart';
-// import 'package:firebase_auth/firebase_auth.dart';
-// import 'package:flutter/material.dart';
-// import 'package:hairbnb/pages/home_page.dart';
-// import 'package:hairbnb/pages/authentification/login_page.dart';
-// import 'package:hairbnb/pages/payment/paiement_error_page.dart';
-// import 'package:hairbnb/pages/payment/paiement_sucess_page.dart';
-// import 'package:hairbnb/services/providers/current_user_provider.dart';
-// import 'package:provider/provider.dart';
-//
-// class SplashScreen extends StatefulWidget {
-//   const SplashScreen({super.key});
-//   @override
-//   State<SplashScreen> createState() => _SplashScreenState();
-// }
-//
-// class _SplashScreenState extends State<SplashScreen> {
-//   StreamSubscription<User?>? _authSubscription;
-//   AppLinks? _appLinks;
-//   StreamSubscription<Uri?>? _deepLinkSubscription;
-//
-//   @override
-//   void initState() {
-//     super.initState();
-//
-//     // Initialiser le gestionnaire de liens profonds
-//     _initDeepLinks();
-//
-//     _authSubscription = FirebaseAuth.instance.authStateChanges().listen((User? user) async {
-//       if (!mounted) return;
-//       if (user == null) {
-//         // 🔴 Déconnecté → Aller au login
-//         Navigator.pushReplacement(
-//           context,
-//           MaterialPageRoute(builder: (context) => const LoginPage()),
-//         );
-//       } else {
-//         // ✅ Connecté → Charger les données avant d'aller à HomePage
-//         final currentUserProvider = Provider.of<CurrentUserProvider>(context, listen: false);
-//         try {
-//           await currentUserProvider.fetchCurrentUser();
-//           Navigator.pushReplacement(
-//             context,
-//             MaterialPageRoute(builder: (context) => const HomePage()),
-//           );
-//         } catch (e) {
-//           // En cas d'erreur de récupération de l'utilisateur
-//           debugPrint("Erreur lors de fetchCurrentUser: $e");
-//           ScaffoldMessenger.of(context).showSnackBar(
-//             const SnackBar(content: Text("Erreur de chargement de l'utilisateur")),
-//           );
-//           FirebaseAuth.instance.signOut(); // Pour forcer retour au login
-//         }
-//       }
-//     });
-//   }
-//
-//   Future<void> _initDeepLinks() async {
-//     _appLinks = AppLinks();
-//
-//     // Vérifier s'il y a un lien initial
-//     try {
-//       final initialUri = await _appLinks!.getInitialLink();
-//       if (initialUri != null && mounted) {
-//         debugPrint("Deep link initial: $initialUri");
-//         _handleDeepLink(initialUri);
-//       }
-//     } catch (e) {
-//       debugPrint("Erreur lors de la récupération du lien initial: $e");
-//     }
-//
-//     // Écouter les liens entrants
-//     _deepLinkSubscription = _appLinks!.uriLinkStream.listen((Uri? uri) {
-//       if (uri != null && mounted) {
-//         debugPrint("Deep link reçu: $uri");
-//         _handleDeepLink(uri);
-//       }
-//     }, onError: (error) {
-//       debugPrint("Erreur de deep link: $error");
-//     });
-//   }
-//
-//   void _handleDeepLink(Uri uri) {
-//     if (uri.scheme == 'hairbnb' && uri.host == 'paiement') {
-//       if (uri.path == '/success') {
-//         Navigator.push(
-//           context,
-//           MaterialPageRoute(builder: (context) => const PaiementSuccessPage()),
-//         );
-//       } else if (uri.path == '/echec') {
-//         Navigator.push(
-//           context,
-//           MaterialPageRoute(builder: (context) => const PaiementErrorPage()),
-//         );
-//       }
-//     }
-//   }
-//
-//   @override
-//   void dispose() {
-//     _authSubscription?.cancel();
-//     _deepLinkSubscription?.cancel();
-//     super.dispose();
-//   }
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return const Scaffold(
-//       body: Center(
-//         child: CircularProgressIndicator(),
-//       ),
-//     );
-//   }
-// }
-
-
-
-
-// import 'dart:async';
-// import 'package:firebase_auth/firebase_auth.dart';
-// import 'package:flutter/material.dart';
-// import 'package:hairbnb/pages/home_page.dart';
-// import 'package:hairbnb/pages/authentification/login_page.dart';
-// import 'package:hairbnb/services/providers/current_user_provider.dart';
-// import 'package:provider/provider.dart';
-//
-// class SplashScreen extends StatefulWidget {
-//   const SplashScreen({super.key});
-//
-//   @override
-//   State<SplashScreen> createState() => _SplashScreenState();
-// }
-//
-// class _SplashScreenState extends State<SplashScreen> {
-//   StreamSubscription<User?>? _authSubscription;
-//
-//   @override
-//   void initState() {
-//     super.initState();
-//
-//     _authSubscription = FirebaseAuth.instance.authStateChanges().listen((User? user) async {
-//       if (!mounted) return;
-//
-//       if (user == null) {
-//         // 🔴 Déconnecté → Aller au login
-//         Navigator.pushReplacement(
-//           context,
-//           MaterialPageRoute(builder: (context) => const LoginPage()),
-//         );
-//       } else {
-//         // ✅ Connecté → Charger les données avant d'aller à HomePage
-//         final currentUserProvider = Provider.of<CurrentUserProvider>(context, listen: false);
-//
-//         try {
-//           await currentUserProvider.fetchCurrentUser();
-//           Navigator.pushReplacement(
-//             context,
-//             MaterialPageRoute(builder: (context) => const HomePage()),
-//           );
-//         } catch (e) {
-//           // En cas d'erreur de récupération de l'utilisateur
-//           debugPrint("Erreur lors de fetchCurrentUser: $e");
-//           ScaffoldMessenger.of(context).showSnackBar(
-//             const SnackBar(content: Text("Erreur de chargement de l'utilisateur")),
-//           );
-//           FirebaseAuth.instance.signOut(); // Pour forcer retour au login
-//         }
-//       }
-//     });
-//   }
-//
-//   @override
-//   void dispose() {
-//     _authSubscription?.cancel();
-//     super.dispose();
-//   }
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return const Scaffold(
-//       body: Center(
-//         child: CircularProgressIndicator(),
-//       ),
-//     );
-//   }
-// }
-
-
-
-
-
-
-// import 'dart:async';
-// import 'package:firebase_auth/firebase_auth.dart';
-// import 'package:flutter/material.dart';
-// import 'home_page.dart';
-// import 'authentification/login_page.dart';
-//
-// class SplashScreen extends StatefulWidget {
-//   const SplashScreen({super.key});
-//
-//   @override
-//   State<SplashScreen> createState() => _SplashScreenState();
-// }
-//
-// class _SplashScreenState extends State<SplashScreen> {
-//   StreamSubscription<User?>? _authSubscription;
-//
-//   @override
-//   void initState() {
-//     super.initState();
-//
-//     // Abonnement pour écouter les changements d'état utilisateur
-//     _authSubscription = FirebaseAuth.instance.authStateChanges().listen((User? user) {
-//       if (!mounted) return; // Vérifie si le widget est toujours monté
-//
-//       if (user == null) {
-//         // L'utilisateur est déconnecté
-//         Navigator.pushReplacement(
-//           context,
-//           MaterialPageRoute(builder: (context) => const LoginPage()),
-//         );
-//       } else {
-//         // L'utilisateur est connecté
-//         Navigator.pushReplacement(
-//           context,
-//           MaterialPageRoute(builder: (context) => const HomePage()),
-//         );
-//       }
-//     });
-//   }
-//
-//   @override
-//   void dispose() {
-//     // Annule l'abonnement pour éviter d'utiliser le context démonté
-//     _authSubscription?.cancel();
-//     super.dispose();
-//   }
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return const Scaffold(
-//       body: Center(
-//         child: CircularProgressIndicator(),
-//       ),
-//     );
-//   }
-// }
-
-
-
-
-
-
-// import 'package:firebase_auth/firebase_auth.dart';
-
-// import 'package:flutter/material.dart';
-// import 'home_page.dart';
-// import 'login_page.dart';
-//
-// class SplashScreen extends StatefulWidget {
-//   const SplashScreen({super.key});
-//
-//   @override
-//   State<SplashScreen> createState() => _SplashScreenState();
-// }
-//
-// class _SplashScreenState extends State<SplashScreen> {
-//   @override
-//   void initState() {
-//     super.initState();
-//
-//     // Écoute les changements d'état de l'utilisateur
-//     FirebaseAuth.instance.authStateChanges().listen((User? user) {
-//       if (user == null) {
-//         // L'utilisateur est déconnecté ou supprimé, redirige vers LoginPage
-//         Navigator.pushReplacement(
-//           context,
-//           MaterialPageRoute(builder: (context) => const LoginPage()),
-//         );
-//       } else {
-//         // L'utilisateur est connecté, redirige vers HomePage
-//         Navigator.pushReplacement(
-//           context,
-//           MaterialPageRoute(builder: (context) => const HomePage()),
-//         );
-//       }
-//     });
-//   }
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     // Affiche un indicateur de chargement pendant la vérification
-//     return const Scaffold(
-//       body: Center(
-//         child: CircularProgressIndicator(),
-//       ),
-//     );
-//   }
-// }

@@ -1,20 +1,72 @@
-﻿class CommandeClient {
+﻿////////////////////////////////////////////////////////////////////////////////
+//                                                                            //
+//             MODÈLES DE DONNÉES POUR LES COMMANDES CLIENTS                    //
+//                                                                            //
+//  Ce fichier définit les classes nécessaires pour représenter une "Commande"//
+//  côté professionnel. Une commande est essentiellement une vue détaillée     //
+//  d'un rendez-vous, enrichie avec toutes les informations nécessaires pour  //
+//  le suivi par la coiffeuse (détails client, statut, paiement, etc.).       //
+//                                                                            //
+//  - ServiceCommande : Représente un service individuel au sein d'une        //
+//    commande.                                                               //
+//  - CommandeClient : Le modèle principal qui agrège toutes les informations //
+//    d'une commande.                                                         //
+//                                                                            //
+////////////////////////////////////////////////////////////////////////////////
+
+//##############################################################################
+//#                   MODÈLE PRINCIPAL POUR UNE COMMANDE CLIENT                #
+//##############################################################################
+
+/// Représente une commande client, qui correspond à un rendez-vous détaillé.
+/// Cette classe agrège les informations sur le rendez-vous, le client, le salon,
+/// le paiement et les services associés.
+class CommandeClient {
+  //region Propriétés de la Commande
+
+  // --- Infos sur le Rendez-vous ---
+  /// L'identifiant unique du rendez-vous.
   final int idRendezVous;
+  /// La date et l'heure du rendez-vous au format String ISO 8601.
   final String dateHeure;
+  /// Le statut actuel du rendez-vous (ex: "Confirmé", "Terminé", "Annulé").
   final String statut;
+
+  // --- Infos sur le Client ---
+  /// Le nom de famille du client.
   final String nomClient;
+  /// Le prénom du client.
   final String prenomClient;
+  /// Le numéro de téléphone du client.
   final String telephoneClient;
-  final String emailClient; // Ajout du champ email
+  /// L'adresse e-mail du client.
+  final String emailClient;
+
+  // --- Infos sur le Salon ---
+  /// Le nom du salon où a lieu le rendez-vous.
   final String nomSalon;
+
+  // --- Infos Financières ---
+  /// Le prix total de la commande.
   final double totalPrix;
+  /// La durée totale estimée de tous les services, en minutes.
   final int dureeTotale;
+  /// Le statut du paiement (ex: "Payé", "En attente"). Peut être nul.
   final String? statutPaiement;
+  /// La date du paiement. Peut être nul.
   final String? datePaiement;
+  /// Le montant effectivement payé. Peut être nul.
   final double? montantPaye;
+
+  // --- Contenu de la commande ---
+  /// La liste des services inclus dans la commande.
   final List<ServiceCommande> services;
+  /// Indique si la commande est archivée ou non.
   final bool estArchive;
 
+  //endregion
+
+  /// Constructeur pour créer une instance de `CommandeClient`.
   CommandeClient({
     required this.idRendezVous,
     required this.dateHeure,
@@ -22,7 +74,7 @@
     required this.nomClient,
     required this.prenomClient,
     required this.telephoneClient,
-    required this.emailClient, // Paramètre pour l'email
+    required this.emailClient,
     required this.nomSalon,
     required this.totalPrix,
     required this.dureeTotale,
@@ -33,7 +85,8 @@
     required this.estArchive,
   });
 
-  // Création à partir d'un JSON
+  /// Factory constructor pour créer une instance de `CommandeClient` à partir d'un map JSON.
+  /// Gère la désérialisation des données reçues de l'API.
   factory CommandeClient.fromJson(Map<String, dynamic> json) {
     return CommandeClient(
       idRendezVous: json['idRendezVous'],
@@ -42,8 +95,9 @@
       nomClient: json['nom_client'],
       prenomClient: json['prenom_client'],
       telephoneClient: json['telephone_client'] ?? 'Non renseigné',
-      emailClient: json['email_client'], // Récupération de l'email depuis le JSON
+      emailClient: json['email_client'],
       nomSalon: json['nom_salon'],
+      // Conversion robuste pour les nombres, qui peuvent arriver en String ou int.
       totalPrix: double.parse(json['total_prix'].toString()),
       dureeTotale: json['duree_totale'] ?? 0,
       statutPaiement: json['statut_paiement'],
@@ -51,6 +105,7 @@
       montantPaye: json['montant_paye'] != null
           ? double.parse(json['montant_paye'].toString())
           : null,
+      // Itération sur la liste de services et conversion de chaque élément.
       services: (json['services'] as List)
           .map((service) => ServiceCommande.fromJson(service))
           .toList(),
@@ -58,7 +113,8 @@
     );
   }
 
-  // Conversion en JSON
+  /// Convertit l'instance de `CommandeClient` en un map JSON.
+  /// Utile pour la sérialisation des données à envoyer vers une API.
   Map<String, dynamic> toJson() {
     return {
       'idRendezVous': idRendezVous,
@@ -67,7 +123,7 @@
       'nom_client': nomClient,
       'prenom_client': prenomClient,
       'telephone_client': telephoneClient,
-      'email_client': emailClient, // Ajout de l'email dans le JSON
+      'email_client': emailClient,
       'nom_salon': nomSalon,
       'total_prix': totalPrix,
       'duree_totale': dureeTotale,
@@ -79,7 +135,9 @@
     };
   }
 
-  // Pour mettre à jour le statut
+  /// Crée une copie de cette instance de `CommandeClient` avec les champs fournis modifiés.
+  /// Cette méthode est très utile pour la gestion d'état immuable (ex: avec Riverpod, BLoC),
+  /// car elle permet de créer un nouvel état mis à jour sans modifier l'original.
   CommandeClient copyWith({
     int? idRendezVous,
     String? dateHeure,
@@ -87,7 +145,7 @@
     String? nomClient,
     String? prenomClient,
     String? telephoneClient,
-    String? emailClient, // Ajout du paramètre email
+    String? emailClient,
     String? nomSalon,
     double? totalPrix,
     int? dureeTotale,
@@ -104,7 +162,7 @@
       nomClient: nomClient ?? this.nomClient,
       prenomClient: prenomClient ?? this.prenomClient,
       telephoneClient: telephoneClient ?? this.telephoneClient,
-      emailClient: emailClient ?? this.emailClient, // Gestion de la copie de l'email
+      emailClient: emailClient ?? this.emailClient,
       nomSalon: nomSalon ?? this.nomSalon,
       totalPrix: totalPrix ?? this.totalPrix,
       dureeTotale: dureeTotale ?? this.dureeTotale,
@@ -117,18 +175,29 @@
   }
 }
 
+//##############################################################################
+//#                   MODÈLE POUR UN SERVICE DANS UNE COMMANDE                 #
+//##############################################################################
+
+/// Représente un service individuel au sein d'une commande.
+/// Contient les informations clés du service telles qu'elles étaient au moment
+/// de la réservation.
 class ServiceCommande {
+  /// Le nom du service.
   final String intituleService;
+  /// Le prix qui a été appliqué pour ce service dans cette commande.
   final double prixApplique;
+  /// La durée qui a été estimée pour ce service dans cette commande.
   final int dureeEstimee;
 
+  /// Constructeur pour créer une instance de `ServiceCommande`.
   ServiceCommande({
     required this.intituleService,
     required this.prixApplique,
     required this.dureeEstimee,
   });
 
-  // Création à partir d'un JSON
+  /// Factory constructor pour créer une instance de `ServiceCommande` à partir d'un map JSON.
   factory ServiceCommande.fromJson(Map<String, dynamic> json) {
     return ServiceCommande(
       intituleService: json['intitule_service'],
@@ -137,7 +206,7 @@ class ServiceCommande {
     );
   }
 
-  // Conversion en JSON
+  /// Convertit l'instance de `ServiceCommande` en un map JSON.
   Map<String, dynamic> toJson() {
     return {
       'intitule_service': intituleService,
@@ -152,6 +221,9 @@ class ServiceCommande {
 
 
 
+
+
+
 // class CommandeClient {
 //   final int idRendezVous;
 //   final String dateHeure;
@@ -159,6 +231,7 @@ class ServiceCommande {
 //   final String nomClient;
 //   final String prenomClient;
 //   final String telephoneClient;
+//   final String emailClient; // Ajout du champ email
 //   final String nomSalon;
 //   final double totalPrix;
 //   final int dureeTotale;
@@ -175,6 +248,7 @@ class ServiceCommande {
 //     required this.nomClient,
 //     required this.prenomClient,
 //     required this.telephoneClient,
+//     required this.emailClient, // Paramètre pour l'email
 //     required this.nomSalon,
 //     required this.totalPrix,
 //     required this.dureeTotale,
@@ -194,6 +268,7 @@ class ServiceCommande {
 //       nomClient: json['nom_client'],
 //       prenomClient: json['prenom_client'],
 //       telephoneClient: json['telephone_client'] ?? 'Non renseigné',
+//       emailClient: json['email_client'], // Récupération de l'email depuis le JSON
 //       nomSalon: json['nom_salon'],
 //       totalPrix: double.parse(json['total_prix'].toString()),
 //       dureeTotale: json['duree_totale'] ?? 0,
@@ -218,6 +293,7 @@ class ServiceCommande {
 //       'nom_client': nomClient,
 //       'prenom_client': prenomClient,
 //       'telephone_client': telephoneClient,
+//       'email_client': emailClient, // Ajout de l'email dans le JSON
 //       'nom_salon': nomSalon,
 //       'total_prix': totalPrix,
 //       'duree_totale': dureeTotale,
@@ -237,6 +313,7 @@ class ServiceCommande {
 //     String? nomClient,
 //     String? prenomClient,
 //     String? telephoneClient,
+//     String? emailClient, // Ajout du paramètre email
 //     String? nomSalon,
 //     double? totalPrix,
 //     int? dureeTotale,
@@ -253,6 +330,7 @@ class ServiceCommande {
 //       nomClient: nomClient ?? this.nomClient,
 //       prenomClient: prenomClient ?? this.prenomClient,
 //       telephoneClient: telephoneClient ?? this.telephoneClient,
+//       emailClient: emailClient ?? this.emailClient, // Gestion de la copie de l'email
 //       nomSalon: nomSalon ?? this.nomSalon,
 //       totalPrix: totalPrix ?? this.totalPrix,
 //       dureeTotale: dureeTotale ?? this.dureeTotale,
