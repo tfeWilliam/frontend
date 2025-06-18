@@ -32,7 +32,6 @@ void main() async {
   if (kIsWeb) {
     await Firebase.initializeApp(
       options: FirebaseOptions(
-        apiKey: "AIzaSyBwQnw-rxiMy88yqf-rWUxIuWLTSfiTkEc",
         authDomain: "hairbnb-7eeb9.firebaseapp.com",
         databaseURL: "https://hairbnb-7eeb9-default-rtdb.europe-west1.firebasedatabase.app",
         projectId: "hairbnb-7eeb9",
