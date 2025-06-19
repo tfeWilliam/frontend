@@ -25,8 +25,6 @@ class RouteService {
           settings: settings,
         );
 
-    // Vous pouvez ajouter d'autres routes spéciales ici
-
       default:
       // Retourne null pour les routes inconnues (laissez le navigateur principal les gérer)
         return null;
